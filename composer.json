@@ -1,0 +1,7 @@
+{
+  "name": "6562680/error-bag",
+  "type": "library",
+  "require": {
+    "php": "^7.2"
+  }
+}
