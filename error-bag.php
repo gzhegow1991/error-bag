@@ -1,458 +1,416 @@
 <?php
 
-class ErrorBagStack
+class ErrorBagItem
 {
-    protected $errorBagStack = [];
-    protected $errorBag;
-
-
-    public function hasErrorBag() : ?ErrorBag
-    {
-        return $this->errorBag;
-    }
-
-    public function getErrorBag() : ErrorBag
-    {
-        return $this->errorBag;
-    }
-
-
-    public function pushErrorBag(ErrorBag $errorBag) : void
-    {
-        $this->errorBagStack[] = $errorBag;
-
-        $this->errorBag = $errorBag;
-    }
-
-    public function popErrorBag(ErrorBag $errorBag = null) : ErrorBag
-    {
-        if (! $this->errorBagStack) {
-            throw new \BadMethodCallException('The `errorBagStack` should be not-empty');
-        }
-
-        $errorBagLast = array_pop($this->errorBagStack);
-
-        if ($errorBag && ($errorBagLast !== $errorBag)) {
-            throw new \RuntimeException(
-                'You possible forget somewhere to pop() previously started error bag, passed and last should be equal'
-            );
-        }
-
-        $this->errorBag = $this->errorBagStack
-            ? end($this->errorBagStack)
-            : null;
-
-        return $errorBagLast;
-    }
-
-
-    public function startErrorBag(ErrorBag $errorBag) : void
-    {
-        $this->errorBagStack[] = $errorBag;
-
-        $this->errorBag = $errorBag;
-    }
-
     /**
-     * @param ErrorBag $errorBag
-     *
-     * @return ErrorBag[]
+     * @var mixed
      */
-    public function endErrorBag(ErrorBag $errorBag) : array
-    {
-        if (false === ($key = array_search($errorBag, $this->errorBagStack, true))) {
-            throw new \RuntimeException('ErrorBag is not found in stack: '
-                . ErrorBag::class . '#' . spl_object_id($errorBag)
-            );
-        }
-
-        $stack = [];
-
-        for ( $i = $key; $i < count($this->errorBagStack); $i++ ) {
-            $stack[ $i ] = $this->errorBagStack[ $i ];
-
-            unset($this->errorBagStack[ $i ]);
-        }
-
-        return $stack;
-    }
-
-
-    public static function getInstance() : self
-    {
-        return static::$instances[ static::class ] = static::$instances[ static::class ]
-            ?? new static();
-    }
-
-    protected static $instances = [];
+    public $body;
+    /**
+     * @var array
+     */
+    public $path;
+    /**
+     * @var array
+     */
+    public $tags;
 }
 
 class ErrorBag
 {
-    protected const TYPE_WARNING = 0;
-    protected const TYPE_ERROR   = 1;
-
-
     /**
-     * @var array<int, string[]>
+     * @var ErrorBagItem[]
      */
-    protected $pathes = [];
+    protected $errors;
     /**
-     * @var array<int, int>
+     * @var ErrorBagItem[]
      */
-    protected $types = [];
-    /**
-     * @var array
-     */
-    protected $list = [];
-    /**
-     * @var array<int, string[]>
-     */
-    protected $tags = [];
+    protected $warnings;
 
 
     public function isEmpty() : bool
     {
-        return ! empty($this->list);
+        return ! empty($this->errors) || ! empty($this->warnings);
     }
 
     public function isErrors() : bool
     {
-        return ! empty($this->types)
-            && in_array(static::TYPE_ERROR, $this->types);
+        return ! empty($this->errors);
     }
 
     public function isWarnings() : bool
     {
-        return ! empty($this->types)
-            && in_array(static::TYPE_WARNING, $this->types);
+        return ! empty($this->warnings);
     }
 
 
     public function hasErrors() : ?array
     {
-        $result = null;
-
-        foreach ( $this->list as $idx => $error ) {
-            if (static::TYPE_ERROR === $this->types[ $idx ]) {
-                $result[ $idx ] = $error;
-            }
-        }
-
-        return $result;
+        return $this->errors;
     }
 
     public function hasWarnings() : ?array
     {
-        $result = null;
-
-        foreach ( $this->list as $idx => $error ) {
-            if (static::TYPE_WARNING === $this->types[ $idx ]) {
-                $result[ $idx ] = $error;
-            }
-        }
-
-        return $result;
+        return $this->warnings;
     }
 
 
     public function getErrors() : array
     {
-        return $this->hasErrors();
+        return $this->errors;
     }
 
     public function getWarnings() : array
     {
-        return $this->hasWarnings();
+        return $this->warnings;
     }
 
 
-    protected function _getErrors() : array
+    public function getByPath($and, ...$orAnd) : self
     {
-        $list = $this->hasErrors() ?? [];
+        array_unshift($orAnd, $and);
 
-        $types = [];
-        $pathes = [];
-        $tags = [];
-        foreach ( $list as $idx => $error ) {
-            $types[ $idx ] = $this->types[ $idx ];
+        $_orAnd = [];
+        foreach ( $orAnd as $i => $and ) {
+            $_and = [];
+            if ($and instanceof stdClass) {
+                foreach ( get_object_vars($and) as $v ) {
+                    $_and[] = (array) $v;
+                }
 
-            $pathes[ $idx ] = $this->pathes[ $idx ] ?? [];
-            $tags[ $idx ] = $this->tags[ $idx ] ?? [];
+            } else {
+                $_and[] = (array) $and;
+            }
+
+            foreach ( $_and as $ii => $path ) {
+                $_orAnd[ $i ][ $ii ] = "\0" . implode("\0", (array) $path) . "\0";
+            }
         }
-
-        return [
-            $types,
-            $list,
-            $pathes,
-            $tags,
-        ];
-    }
-
-    protected function _getWarnings() : array
-    {
-        $list = $this->hasWarnings() ?? [];
-
-        $types = [];
-        $pathes = [];
-        $tags = [];
-        foreach ( $list as $idx => $error ) {
-            $types[ $idx ] = $this->types[ $idx ];
-
-            $pathes[ $idx ] = $this->pathes[ $idx ] ?? [];
-            $tags[ $idx ] = $this->tags[ $idx ] ?? [];
-        }
-
-        return [
-            $types,
-            $list,
-            $pathes,
-            $tags,
-        ];
-    }
-
-
-    public function getByPath(array $path, array ...$orPathes) : self
-    {
-        array_unshift($orPathes, $path);
 
         $instance = new static();
 
-        foreach ( $this->list as $i => $item ) {
-            $pathString = "\0" . implode("\0", $this->pathes[ $i ] ?? []) . "\0";
+        foreach ( $this->errors ?? [] as $error ) {
+            $pathString = "\0" . implode("\0", $error->path ?? []) . "\0";
 
-            foreach ( $orPathes as $orPath ) {
-                if (! $orPath) continue;
+            $found = true;
+            
+            foreach ( $_orAnd as $_and ) {
+                $found = true;
 
-                $orPathString = "\0" . implode("\0", $orPath) . "\0";
+                foreach ( $_and as $andPathString ) {
+                    if (false === strpos($pathString, $andPathString)) {
+                        $found = false;
 
-                if (false === strpos($pathString, $orPathString)) {
-                    continue 2;
+                        break;
+                    }
+                }
+
+                if ($found) {
+                    break;
                 }
             }
 
-            end($instance->list);
-            $ii = (null !== ($key = key($instance->list))) ? $key + 1 : 0;
+            if ($found) {
+                $instance->errors[] = $error;
+            }
+        }
 
-            $instance->types[ $ii ] = $this->types[ $i ];
-            $instance->list[ $ii ] = $this->list[ $i ];
+        foreach ( $this->warnings ?? [] as $warning ) {
+            $pathString = "\0" . implode("\0", $warning->path ?? []) . "\0";
 
-            if (isset($this->pathes[ $i ])) $instance->pathes[ $ii ] = $this->pathes[ $i ];
-            if (isset($this->tags[ $i ])) $instance->tags[ $ii ] = $this->tags[ $i ];
+            $found = true;
+
+            foreach ( $_orAnd as $_and ) {
+                $found = true;
+
+                foreach ( $_and as $andPathString ) {
+                    if (false === strpos($pathString, $andPathString)) {
+                        $found = false;
+
+                        break;
+                    }
+                }
+
+                if ($found) {
+                    break;
+                }
+            }
+
+            if ($found) {
+                $instance->warnings[] = $warning;
+            }
         }
 
         return $instance;
     }
 
-    public function getByTags(array $tags, array ...$orTags) : self
+    public function getByTags($and, ...$orAnd) : self
     {
-        array_unshift($orTags, $tags);
+        array_unshift($orAnd, $and);
+
+        $_orAnd = [];
+        foreach ( $orAnd as $i => $and ) {
+            $_and = [];
+            if ($and instanceof stdClass) {
+                foreach ( get_object_vars($and) as $v ) {
+                    $_and[] = (array) $v;
+                }
+
+            } else {
+                $_and[] = (array) $and;
+            }
+
+            foreach ( $_and as $ii => $tags ) {
+                $_orAnd[ $i ][ $ii ] = $tags;
+            }
+        }
 
         $instance = new static();
 
-        foreach ( $this->list as $i => $item ) {
-            $itemTags = $this->tags[ $i ];
+        foreach ( $this->errors ?? [] as $error ) {
+            $tags = $error->tags ?? [];
 
-            foreach ( $orTags as $orTagsCurrent ) {
-                if (! $orTagsCurrent) continue;
+            $found = true;
 
-                if (array_diff($orTagsCurrent, $itemTags)) {
-                    continue 2;
+            foreach ( $_orAnd as $_and ) {
+                $found = true;
+
+                foreach ( $_and as $andTags ) {
+                    if (! $andTags) {
+                        continue;
+                    }
+
+                    if (array_diff($andTags, $tags)) {
+                        $found = false;
+
+                        break;
+                    }
+                }
+
+                if ($found) {
+                    break;
                 }
             }
 
-            end($instance->list);
-            $ii = (null !== ($key = key($instance->list))) ? $key + 1 : 0;
+            if ($found) {
+                $instance->errors[] = $error;
+            }
+        }
 
-            $instance->types[ $ii ] = $this->types[ $i ];
-            $instance->list[ $ii ] = $this->list[ $i ];
+        foreach ( $this->warnings ?? [] as $warning ) {
+            $tags = $warning->tags ?? [];
 
-            if (isset($this->pathes[ $i ])) $instance->pathes[ $ii ] = $this->pathes[ $i ];
-            if (isset($this->tags[ $i ])) $instance->tags[ $ii ] = $this->tags[ $i ];
+            $found = true;
+
+            foreach ( $_orAnd as $_and ) {
+                $found = true;
+
+                foreach ( $_and as $andTags ) {
+                    if (! $andTags) {
+                        continue;
+                    }
+
+                    if (array_diff($andTags, $tags)) {
+                        $found = false;
+
+                        break;
+                    }
+                }
+
+                if ($found) {
+                    break;
+                }
+            }
+
+            if ($found) {
+                $instance->warnings[] = $warning;
+            }
         }
 
         return $instance;
     }
 
 
-    public function addErrors(array $errors, array $path = null, array $tags = null) : void
+    public function addErrors(array $errors, $path = null, $tags = null) : void
     {
         foreach ( $errors as $idx => $error ) {
             $this->addError(
                 $error,
-                $path ? array_merge($path, [ $idx ]) : null,
+                isset($path) ? array_merge((array) $path, [ $idx ]) : null,
                 $tags
             );
         }
     }
 
-    public function addError($error, array $path = null, array $tags = null) : void
+    public function addError($error, $path = null, $tags = null) : void
     {
         if (is_a($error, static::class)) {
             $this->mergeBagAsErrors($error, $path, $tags);
 
         } else {
-            end($this->list);
-            $idx = (null !== ($key = key($this->list))) ? $key + 1 : 0;
+            $_path = null;
+            $_tags = null;
 
-            $this->types[ $idx ] = static::TYPE_ERROR;
-            $this->list[ $idx ] = $error;
+            if (isset($path)) $_path = array_map('strval', (array) $path);
+            if (isset($tags)) $_tags = array_map('strval', (array) $tags);
 
-            if ($path) $this->pathes[ $idx ] = array_map('strval', $path);
-            if ($tags) $this->tags[ $idx ] = array_map('strval', $tags);
+            $item = new ErrorBagItem();
+            $item->body = $error;
+            $item->path = $_path;
+            $item->tags = $_tags;
+
+            $this->errors[] = $item;
         }
     }
 
 
-    public function addWarnings(array $warnings, array $path = null, array $tags = null) : void
+    public function addWarnings(array $warnings, $path = null, $tags = null) : void
     {
         foreach ( $warnings as $idx => $warning ) {
             $this->addWarning(
                 $warning,
-                $path ? array_merge($path, [ $idx ]) : null,
+                isset($path) ? array_merge((array) $path, [ $idx ]) : null,
                 $tags
             );
         }
     }
 
-    public function addWarning($warning, array $path = null, array $tags = null) : void
+    public function addWarning($warning, $path = null, $tags = null) : void
     {
         if (is_a($warning, static::class)) {
             $this->mergeBagAsWarnings($warning, $path, $tags);
 
         } else {
-            end($this->list);
-            $idx = (null !== ($key = key($this->list))) ? $key + 1 : 0;
+            $_path = null;
+            $_tags = null;
 
-            $this->types[ $idx ] = static::TYPE_WARNING;
-            $this->list[ $idx ] = $warning;
+            if (isset($path)) $_path = array_map('strval', (array) $path);
+            if (isset($tags)) $_tags = array_map('strval', (array) $tags);
 
-            if ($path) $this->pathes[ $idx ] = array_map('strval', $path);
-            if ($tags) $this->tags[ $idx ] = array_map('strval', $tags);
+            $item = new ErrorBagItem();
+            $item->body = $warning;
+            $item->path = $_path;
+            $item->tags = $_tags;
+
+            $this->warnings[] = $item;
         }
     }
 
 
-    public function mergeBag(self $errorBag, array $path = null, array $tags = null) : void
+    public function mergeBag(self $errorBag, $path = null, $tags = null) : self
     {
-        [ $_types, $_list, $_pathes, $_tags ] = $errorBag->_getErrors();
+        foreach ( $errorBag->errors ?? [] as $error ) {
+            $_path = $error->path;
+            $_tags = $error->tags;
 
-        foreach ( array_keys($_types) as $idx ) {
-            $typeNew = self::TYPE_ERROR;
-            $itemNew = $_list[ $idx ];
-            $pathNew = array_merge($path ?? [], $_pathes[ $idx ]);
-            $tagsNew = array_merge($_tags[ $idx ], $tags ?? []);
+            if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
+            if (isset($tags)) $_tags = array_merge($_tags ?? [], (array) $tags);
 
-            end($this->list);
-            $idx = (null !== ($key = key($this->list))) ? $key + 1 : 0;
+            $item = new ErrorBagItem();
+            $item->body = $error->body;
+            $item->path = $_path;
+            $item->tags = $_tags;
 
-            $this->types[ $idx ] = $typeNew;
-            $this->list[ $idx ] = $itemNew;
-            $this->pathes[ $idx ] = $pathNew;
-            $this->tags[ $idx ] = $tagsNew;
+            $this->errors[] = $item;
         }
 
-        [ $_types, $_list, $_pathes, $_tags ] = $errorBag->_getWarnings();
+        foreach ( $errorBag->warnings ?? [] as $warning ) {
+            $_path = $warning->path;
+            $_tags = $warning->tags;
 
-        foreach ( array_keys($_types) as $idx ) {
-            $typeNew = self::TYPE_WARNING;
-            $itemNew = $_list[ $idx ];
-            $pathNew = array_merge($path ?? [], $_pathes[ $idx ]);
-            $tagsNew = array_merge($_tags[ $idx ], $tags ?? []);
+            if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
+            if (isset($tags)) $_tags = array_merge($_tags ?? [], (array) $tags);
 
-            end($this->list);
-            $idx = (null !== ($key = key($this->list))) ? $key + 1 : 0;
+            $item = new ErrorBagItem();
+            $item->body = $warning->body;
+            $item->path = $_path;
+            $item->tags = $_tags;
 
-            $this->types[ $idx ] = $typeNew;
-            $this->list[ $idx ] = $itemNew;
-            $this->pathes[ $idx ] = $pathNew;
-            $this->tags[ $idx ] = $tagsNew;
+            $this->warnings[] = $item;
         }
+
+        return $this;
     }
 
-    public function mergeBagAsErrors(self $errorBag, array $path = null, array $tags = null) : void
+    public function mergeBagAsErrors(self $errorBag, $path = null, $tags = null) : self
     {
-        [ $_types, $_list, $_pathes, $_tags ] = $errorBag->_getErrors();
+        foreach ( $errorBag->errors ?? [] as $error ) {
+            $_path = $error->path;
+            $_tags = $error->tags;
 
-        foreach ( array_keys($_types) as $idx ) {
-            $typeNew = self::TYPE_ERROR;
-            $itemNew = $_list[ $idx ];
-            $pathNew = array_merge($path ?? [], $_pathes[ $idx ]);
-            $tagsNew = array_merge($_tags[ $idx ], $tags ?? []);
+            if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
+            if (isset($tags)) $_tags = array_merge($_tags ?? [], (array) $tags);
 
-            end($this->list);
-            $idx = (null !== ($key = key($this->list))) ? $key + 1 : 0;
+            $item = new ErrorBagItem();
+            $item->body = $error->body;
+            $item->path = $_path;
+            $item->tags = $_tags;
 
-            $this->types[ $idx ] = $typeNew;
-            $this->list[ $idx ] = $itemNew;
-            $this->pathes[ $idx ] = $pathNew;
-            $this->tags[ $idx ] = $tagsNew;
+            $this->errors[] = $item;
         }
 
-        [ $_types, $_list, $_pathes, $_tags ] = $errorBag->_getWarnings();
+        foreach ( $errorBag->warnings ?? [] as $warning ) {
+            $_path = $warning->path;
+            $_tags = $warning->tags;
 
-        foreach ( array_keys($_types) as $idx ) {
-            $typeNew = self::TYPE_ERROR;
-            $itemNew = $_list[ $idx ];
-            $pathNew = array_merge($path ?? [], $_pathes[ $idx ]);
-            $tagsNew = array_merge($_tags[ $idx ], $tags ?? []);
+            if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
+            if (isset($tags)) $_tags = array_merge($_tags ?? [], (array) $tags);
 
-            end($this->list);
-            $idx = (null !== ($key = key($this->list))) ? $key + 1 : 0;
+            $item = new ErrorBagItem();
+            $item->body = $warning->body;
+            $item->path = $_path;
+            $item->tags = $_tags;
 
-            $this->types[ $idx ] = $typeNew;
-            $this->list[ $idx ] = $itemNew;
-            $this->pathes[ $idx ] = $pathNew;
-            $this->tags[ $idx ] = $tagsNew;
+            $this->errors[] = $item;
         }
+
+        return $this;
     }
 
-    public function mergeBagAsWarnings(self $errorBag, array $path = null, array $tags = null) : void
+    public function mergeBagAsWarnings(self $errorBag, $path = null, $tags = null) : self
     {
-        [ $_types, $_list, $_pathes, $_tags ] = $errorBag->_getErrors();
+        foreach ( $errorBag->errors ?? [] as $error ) {
+            $_path = $error->path;
+            $_tags = $error->tags;
 
-        foreach ( array_keys($_types) as $idx ) {
-            $typeNew = self::TYPE_WARNING;
-            $itemNew = $_list[ $idx ];
-            $pathNew = array_merge($path ?? [], $_pathes[ $idx ]);
-            $tagsNew = array_merge($_tags[ $idx ], $tags ?? []);
+            if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
+            if (isset($tags)) $_tags = array_merge($_tags ?? [], (array) $tags);
 
-            end($this->list);
-            $idx = (null !== ($key = key($this->list))) ? $key + 1 : 0;
+            $item = new ErrorBagItem();
+            $item->body = $error->body;
+            $item->path = $_path;
+            $item->tags = $_tags;
 
-            $this->types[ $idx ] = $typeNew;
-            $this->list[ $idx ] = $itemNew;
-            $this->pathes[ $idx ] = $pathNew;
-            $this->tags[ $idx ] = $tagsNew;
+            $this->warnings[] = $item;
         }
 
-        [ $_types, $_list, $_pathes, $_tags ] = $errorBag->_getWarnings();
+        foreach ( $errorBag->warnings ?? [] as $warning ) {
+            $_path = $warning->path;
+            $_tags = $warning->tags;
 
-        foreach ( array_keys($_types) as $idx ) {
-            $typeNew = self::TYPE_WARNING;
-            $itemNew = $_list[ $idx ];
-            $pathNew = array_merge($path ?? [], $_pathes[ $idx ]);
-            $tagsNew = array_merge($_tags[ $idx ], $tags ?? []);
+            if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
+            if (isset($tags)) $_tags = array_merge($_tags ?? [], (array) $tags);
 
-            end($this->list);
-            $idx = (null !== ($key = key($this->list))) ? $key + 1 : 0;
+            $item = new ErrorBagItem();
+            $item->body = $warning->body;
+            $item->path = $_path;
+            $item->tags = $_tags;
 
-            $this->types[ $idx ] = $typeNew;
-            $this->list[ $idx ] = $itemNew;
-            $this->pathes[ $idx ] = $pathNew;
-            $this->tags[ $idx ] = $tagsNew;
+            $this->warnings[] = $item;
         }
+
+        return $this;
     }
 
 
-    public function toArray(bool $asObject = null) : array
+    public function toArray(string $implodeKeySeparator = null) : array
     {
-        $asObject = $asObject ?? false;
+        $implodeKeySeparator = $implodeKeySeparator ?? '.';
 
         $result = [];
 
-        $result[ 'errors' ] = $this->convertToArray($asObject, ...$this->_getErrors());
-        $result[ 'warnings' ] = $this->convertToArray($asObject, ...$this->_getWarnings());
+        $result[ 'errors' ] = $this->convertToArray($this->errors ?? [], $implodeKeySeparator);
+        $result[ 'warnings' ] = $this->convertToArray($this->warnings ?? [], $implodeKeySeparator);
 
         return $result;
     }
@@ -463,81 +421,51 @@ class ErrorBag
 
         $result = [];
 
-        $result[ 'errors' ] = $this->convertToArrayNested($asObject, ...$this->_getErrors());
-        $result[ 'warnings' ] = $this->convertToArrayNested($asObject, ...$this->_getWarnings());
+        $result[ 'errors' ] = $this->convertToArrayNested($this->errors ?? [], $asObject);
+        $result[ 'warnings' ] = $this->convertToArrayNested($this->warnings ?? [], $asObject);
 
         return $result;
     }
 
 
-    protected function convertToArray(
-        ?bool $asObject,
-        array $types,
-        array $list,
-        array $pathes,
-        array $tags
-    ) : array
+    public function convertToArray(array $items, string $implodeKeySeparator = null) : array
     {
-        $asObject = $asObject ?? true;
-
         $result = [];
 
-        foreach ( array_keys($types) as $i ) {
-            $_item = $list[ $i ];
+        if (! isset($implodeKeySeparator)) {
+            return $items;
+        }
 
-            if (! $asObject) {
-                $row = $_item;
-
-            } else {
-                $_type = $types[ $i ];
-                $_path = $pathes[ $i ];
-                $_tags = $tags[ $i ];
-
-                $row = (object) [
-                    'path' => $_path,
-                    'type' => ($_type === self::TYPE_WARNING) ? 'warning' : 'error',
-                    'item' => $_item,
-                    'tags' => $_tags,
-                ];
+        foreach ( $items as $i => $item ) {
+            if (! ($item instanceof ErrorBagItem)) {
+                throw new \LogicException('Each of `items` should be instance of: ' . ErrorBagItem::class);
             }
 
-            $result[ $i ] = $row;
+            $result[ $i ] = [
+                $item->body,
+                implode($implodeKeySeparator, $item->path),
+            ];
         }
 
         return $result;
     }
 
-    protected function convertToArrayNested(
-        ?bool $asObject,
-        array $types,
-        array $list,
-        array $pathes,
-        array $tags
-    ) : array
+    public function convertToArrayNested(array $items, bool $asObject = null) : array
     {
         $asObject = $asObject ?? true;
 
         $result = [];
 
-        foreach ( array_keys($types) as $i ) {
-            $_item = $list[ $i ];
-            $_path = $pathes[ $i ];
-
-            if (! $asObject) {
-                $row = $_item;
-
-            } else {
-                $_type = $types[ $i ];
-                $_tags = $tags[ $i ];
-
-                $row = (object) [
-                    'type' => ($_type === self::TYPE_WARNING) ? 'warning' : 'error',
-                    'item' => $_item,
-                    'tags' => $_tags,
-                ];
+        foreach ( $items as $item ) {
+            if (! ($item instanceof ErrorBagItem)) {
+                throw new \LogicException('Each of `items` should be instance of: ' . ErrorBagItem::class);
             }
 
-            $this->arraySet($result, $_path, $row);
+            $row = $asObject
+                ? $item
+                : $item->body;
+
+            $this->arraySet($result, $item->path, $row);
         }
 
         return $result;
@@ -578,69 +506,227 @@ class ErrorBag
     }
 }
 
-
-function _error_bag(\ErrorBag &$ref = null) : \ErrorBag
+class ErrorBagStack
 {
-    $ref = null;
+    protected $errorBagStack = [];
+    protected $errorBag;
 
-    $scope = ErrorBagStack::getInstance();
 
-    if (! $ref = $scope->hasErrorBag()) {
-        $ref = new \ErrorBag();
-
-        $scope->pushErrorBag($ref);
+    public function hasErrorBag() : ?ErrorBag
+    {
+        return $this->errorBag;
     }
 
-    return $ref;
+    public function getErrorBag() : ErrorBag
+    {
+        return $this->errorBag;
+    }
+
+
+    public function pushErrorBag(ErrorBag $current = null) : ErrorBag
+    {
+        $current = $current ?? new ErrorBag();
+
+        $this->errorBagStack[] = $current;
+
+        $this->errorBag = $current;
+
+        return $current;
+    }
+
+    public function popErrorBag(ErrorBag $verify = null) : ErrorBag
+    {
+        if (! $this->errorBagStack) {
+            throw new \BadMethodCallException('The `errorBagStack` should be not-empty');
+        }
+
+        $errorBagLast = array_pop($this->errorBagStack);
+
+        if ($verify && ($errorBagLast !== $verify)) {
+            throw new \RuntimeException(
+                'You possible forget somewhere to pop() previously started error bag'
+            );
+        }
+
+        $this->errorBag = $this->errorBagStack
+            ? end($this->errorBagStack)
+            : null;
+
+        return $errorBagLast;
+    }
+
+
+    public function startErrorBag(ErrorBag $new = null) : ErrorBag
+    {
+        $new = $new ?? new ErrorBag();
+
+        $this->errorBagStack[] = $new;
+
+        $this->errorBag = $new;
+
+        return $new;
+    }
+
+    public function endErrorBag(ErrorBag $until = null) : ErrorBag
+    {
+        $count = count($this->errorBagStack);
+
+        $flush = new ErrorBag();
+
+        for ( $i = $count - 1; $i >= 0; $i-- ) {
+            $current = $this->errorBagStack[ $i ];
+
+            unset($this->errorBagStack[ $i ]);
+
+            $flush->mergeBag($current);
+
+            if ($until === $current) {
+                break;
+            }
+        }
+
+        $this->errorBag = $this->errorBagStack
+            ? end($this->errorBagStack)
+            : null;
+
+        return $flush;
+    }
+
+
+    public static function getInstance() : self
+    {
+        return static::$instances[ static::class ] = static::$instances[ static::class ]
+            ?? new static();
+    }
+
+    protected static $instances = [];
 }
 
 
-function _error_bag_push(\ErrorBag &$ref = null) : \ErrorBag
+/**
+ * > получает текущий errorBag, если он есть
+ * > или создает новый и возвращает его как null-object
+ */
+function _error_bag(\ErrorBag &$return = null) : \ErrorBag
 {
-    $ref = null;
+    $return = null;
 
-    $scope = ErrorBagStack::getInstance();
+    $stack = ErrorBagStack::getInstance();
 
-    $ref = new \ErrorBag();
+    if (! $return = $stack->hasErrorBag()) {
+        $new = new \ErrorBag();
 
-    $scope->pushErrorBag($ref);
+        $return = $new;
+    }
 
-    return $ref;
-}
-
-function _error_bag_pop(\ErrorBag $errorBagToVerify = null) : ErrorBag
-{
-    $scope = ErrorBagStack::getInstance();
-
-    $errorBagLast = $scope->popErrorBag($errorBagToVerify);
-
-    return $errorBagLast;
+    return $return;
 }
 
 
-function _error_bag_warning($warning, array $path = null, array $tags = null) : void
+/**
+ * > создает новый error-bag, и делает его текущим
+ * > только если до этого где-либо вызывался _error_bag()
+ */
+function _error_bag_push(\ErrorBag &$return = null) : \ErrorBag
 {
-    $scope = ErrorBagStack::getInstance();
+    $return = null;
 
-    if ($errorBagCurrent = $scope->hasErrorBag()) {
-        $errorBagCurrent->addWarning($warning, $path, $tags);
+    $stack = ErrorBagStack::getInstance();
+
+    $new = new \ErrorBag();
+
+    if ($stack->hasErrorBag()) {
+        $stack->pushErrorBag($new);
+    }
+
+    $return = $new;
+
+    return $return;
+}
+
+/**
+ * > забирает крайний error-bag, если он был, делает его родителя текущим
+ * > или создает новый и возвращает его как null-object
+ */
+function _error_bag_pop(\ErrorBag $verify = null) : \ErrorBag
+{
+    $stack = ErrorBagStack::getInstance();
+
+    if ($stack->hasErrorBag()) {
+        $last = $stack->popErrorBag($verify);
+
+        $return = $last;
+
+    } else {
+        $new = new \ErrorBag();
+
+        $return = $new;
+    }
+
+    return $return;
+}
+
+
+/**
+ * > получает текущий errorBag, если он есть
+ * > или создает новый и устанавливает его текущим
+ * > рекомендуется вызывать в слое управления и после сбора ошибок завершать вызовом _error_bag_pop()
+ */
+function _error_bag_start(\ErrorBag &$return = null) : \ErrorBag
+{
+    $return = null;
+
+    $stack = ErrorBagStack::getInstance();
+
+    if (! $return = $stack->hasErrorBag()) {
+        $new = new \ErrorBag();
+
+        $stack->startErrorBag($new);
+
+        $return = $new;
+    }
+
+    return $return;
+}
+
+/**
+ * > получает текущий errorBag, если он есть
+ * > или создает новый и устанавливает его текущим
+ * > рекомендуется вызывать в слое управления и после сбора ошибок завершать вызовом _error_bag_pop()
+ */
+function _error_bag_end(\ErrorBag $until = null) : \ErrorBag
+{
+    $stack = ErrorBagStack::getInstance();
+
+    $flush = $stack->endErrorBag($until);
+
+    return $flush;
+}
+
+
+function _error_bag_warning($warning, $path = null, $tags = null) : void
+{
+    $stack = ErrorBagStack::getInstance();
+
+    if ($current = $stack->hasErrorBag()) {
+        $current->addWarning($warning, $path, $tags);
     }
 }
 
-function _error_bag_error($error, array $path = null, array $tags = null) : void
+function _error_bag_error($error, $path = null, $tags = null) : void
 {
-    $scope = ErrorBagStack::getInstance();
+    $stack = ErrorBagStack::getInstance();
 
-    if ($errorBagCurrent = $scope->hasErrorBag()) {
-        $errorBagCurrent->addError($error, $path, $tags);
+    if ($current = $stack->hasErrorBag()) {
+        $current->addError($error, $path, $tags);
     }
 }
 
-function _error_bag_merge(\ErrorBag $errorBag, array $path = null, array $tags = null) : void
+function _error_bag_merge(\ErrorBag $errorBag, $path = null, $tags = null) : void
 {
-    $scope = ErrorBagStack::getInstance();
+    $stack = ErrorBagStack::getInstance();
 
-    if ($errorBagCurrent = $scope->hasErrorBag()) {
-        $errorBagCurrent->mergeBag($errorBag, $path, $tags);
+    if ($current = $stack->hasErrorBag()) {
+        $current->mergeBag($errorBag, $path, $tags);
     }
 }

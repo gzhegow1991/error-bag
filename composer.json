@@ -1,7 +1,8 @@
 {
   "name": "6562680/error-bag",
   "type": "library",
+  
   "require": {
-    "php": "^7.2"
+    "php": "^7.2|^8.0"
   }
 }
