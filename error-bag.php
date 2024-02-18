@@ -16,7 +16,7 @@ class ErrorBagItem
     public $tags;
 }
 
-class ErrorBag
+class ErrorBag implements \Countable, \IteratorAggregate
 {
     /**
      * @var ErrorBagItem[]
@@ -28,41 +28,76 @@ class ErrorBag
     protected $warnings;
 
 
+    public function count()
+    {
+        return count($this->errors ?? []) + count($this->warnings ?? []);
+    }
+
+    public function getIterator()
+    {
+        return new ArrayIterator(array_merge($this->errors ?? [], $this->warnings ?? []));
+    }
+
+
     public function isEmpty() : bool
     {
         return ! empty($this->errors) || ! empty($this->warnings);
     }
 
-    public function isErrors() : bool
+
+    public function hasErrors() : bool
     {
         return ! empty($this->errors);
     }
 
-    public function isWarnings() : bool
+    public function hasWarnings() : bool
     {
         return ! empty($this->warnings);
     }
 
 
-    public function hasErrors() : ?array
+    public function getErrors() : self
     {
-        return $this->errors;
+        $instance = new static();
+
+        foreach ( $this->errors ?? [] as $error ) {
+            $_path = $error->path;
+            $_tags = $error->tags;
+
+            if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
+            if (isset($tags)) $_tags = array_merge($_tags ?? [], (array) $tags);
+
+            $item = new ErrorBagItem();
+            $item->body = $error->body;
+            $item->path = $_path;
+            $item->tags = $_tags;
+
+            $instance->errors[] = $item;
+        }
+
+        return $instance;
     }
 
-    public function hasWarnings() : ?array
+    public function getWarnings() : self
     {
-        return $this->warnings;
-    }
+        $instance = new static();
 
+        foreach ( $this->warnings ?? [] as $warning ) {
+            $_path = $warning->path;
+            $_tags = $warning->tags;
 
-    public function getErrors() : array
-    {
-        return $this->errors;
-    }
+            if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
+            if (isset($tags)) $_tags = array_merge($_tags ?? [], (array) $tags);
 
-    public function getWarnings() : array
-    {
-        return $this->warnings;
+            $item = new ErrorBagItem();
+            $item->body = $warning->body;
+            $item->path = $_path;
+            $item->tags = $_tags;
+
+            $instance->warnings[] = $item;
+        }
+
+        return $instance;
     }
 
 
@@ -93,7 +128,7 @@ class ErrorBag
             $pathString = "\0" . implode("\0", $error->path ?? []) . "\0";
 
             $found = true;
-            
+
             foreach ( $_orAnd as $_and ) {
                 $found = true;
 
@@ -231,10 +266,10 @@ class ErrorBag
     }
 
 
-    public function addErrors(array $errors, $path = null, $tags = null) : void
+    public function errors(array $errors, $path = null, $tags = null) : void
     {
         foreach ( $errors as $idx => $error ) {
-            $this->addError(
+            $this->error(
                 $error,
                 isset($path) ? array_merge((array) $path, [ $idx ]) : null,
                 $tags
@@ -242,10 +277,10 @@ class ErrorBag
         }
     }
 
-    public function addError($error, $path = null, $tags = null) : void
+    public function error($error, $path = null, $tags = null) : void
     {
         if (is_a($error, static::class)) {
-            $this->mergeBagAsErrors($error, $path, $tags);
+            $this->mergeAsErrors($error, $path, $tags);
 
         } else {
             $_path = null;
@@ -264,10 +299,10 @@ class ErrorBag
     }
 
 
-    public function addWarnings(array $warnings, $path = null, $tags = null) : void
+    public function warnings(array $warnings, $path = null, $tags = null) : void
     {
         foreach ( $warnings as $idx => $warning ) {
-            $this->addWarning(
+            $this->warning(
                 $warning,
                 isset($path) ? array_merge((array) $path, [ $idx ]) : null,
                 $tags
@@ -275,10 +310,10 @@ class ErrorBag
         }
     }
 
-    public function addWarning($warning, $path = null, $tags = null) : void
+    public function warning($warning, $path = null, $tags = null) : void
     {
         if (is_a($warning, static::class)) {
-            $this->mergeBagAsWarnings($warning, $path, $tags);
+            $this->mergeAsWarnings($warning, $path, $tags);
 
         } else {
             $_path = null;
@@ -297,7 +332,7 @@ class ErrorBag
     }
 
 
-    public function mergeBag(self $errorBag, $path = null, $tags = null) : self
+    public function merge(self $errorBag, $path = null, $tags = null) : self
     {
         foreach ( $errorBag->errors ?? [] as $error ) {
             $_path = $error->path;
@@ -332,7 +367,7 @@ class ErrorBag
         return $this;
     }
 
-    public function mergeBagAsErrors(self $errorBag, $path = null, $tags = null) : self
+    public function mergeAsErrors(self $errorBag, $path = null, $tags = null) : self
     {
         foreach ( $errorBag->errors ?? [] as $error ) {
             $_path = $error->path;
@@ -367,7 +402,7 @@ class ErrorBag
         return $this;
     }
 
-    public function mergeBagAsWarnings(self $errorBag, $path = null, $tags = null) : self
+    public function mergeAsWarnings(self $errorBag, $path = null, $tags = null) : self
     {
         foreach ( $errorBag->errors ?? [] as $error ) {
             $_path = $error->path;
@@ -428,7 +463,7 @@ class ErrorBag
     }
 
 
-    public function convertToArray(array $items, string $implodeKeySeparator = null) : array
+    protected function convertToArray(array $items, string $implodeKeySeparator = null) : array
     {
         $result = [];
 
@@ -441,16 +476,15 @@ class ErrorBag
                 throw new \LogicException('Each of `items` should be instance of: ' . ErrorBagItem::class);
             }
 
-            $result[ $i ] = [
-                $item->body,
-                implode($implodeKeySeparator, $item->path),
-            ];
+            $key = implode($implodeKeySeparator, $item->path);
+
+            $result[ $i ][ $key ][] = $item->body;
         }
 
         return $result;
     }
 
-    public function convertToArrayNested(array $items, bool $asObject = null) : array
+    protected function convertToArrayNested(array $items, bool $asObject = null) : array
     {
         $asObject = $asObject ?? true;
 
@@ -578,7 +612,7 @@ class ErrorBagStack
 
             unset($this->errorBagStack[ $i ]);
 
-            $flush->mergeBag($current);
+            $flush->merge($current);
 
             if ($until === $current) {
                 break;
@@ -604,95 +638,50 @@ class ErrorBagStack
 
 
 /**
- * > получает текущий errorBag, если он есть
- * > или создает новый и возвращает его как null-object
+ * > возвращает текущий error-bag, если он есть
+ * > или создает и возвращает null-object
  */
-function _error_bag(\ErrorBag &$return = null) : \ErrorBag
+function _error_bag(\ErrorBag &$current = null) : \ErrorBag
 {
-    $return = null;
+    $current = null;
 
     $stack = ErrorBagStack::getInstance();
 
-    if (! $return = $stack->hasErrorBag()) {
-        $new = new \ErrorBag();
+    if (! $current = $stack->hasErrorBag()) {
+        $_current = new \ErrorBag();
 
-        $return = $new;
+        $current = $_current;
     }
 
-    return $return;
+    return $current;
 }
 
 
 /**
- * > создает новый error-bag, и делает его текущим
- * > только если до этого где-либо вызывался _error_bag()
- */
-function _error_bag_push(\ErrorBag &$return = null) : \ErrorBag
-{
-    $return = null;
-
-    $stack = ErrorBagStack::getInstance();
-
-    $new = new \ErrorBag();
-
-    if ($stack->hasErrorBag()) {
-        $stack->pushErrorBag($new);
-    }
-
-    $return = $new;
-
-    return $return;
-}
-
-/**
- * > забирает крайний error-bag, если он был, делает его родителя текущим
- * > или создает новый и возвращает его как null-object
- */
-function _error_bag_pop(\ErrorBag $verify = null) : \ErrorBag
-{
-    $stack = ErrorBagStack::getInstance();
-
-    if ($stack->hasErrorBag()) {
-        $last = $stack->popErrorBag($verify);
-
-        $return = $last;
-
-    } else {
-        $new = new \ErrorBag();
-
-        $return = $new;
-    }
-
-    return $return;
-}
-
-
-/**
- * > получает текущий errorBag, если он есть
+ * > получает текущий error-bag, если он есть
  * > или создает новый и устанавливает его текущим
- * > рекомендуется вызывать в слое управления и после сбора ошибок завершать вызовом _error_bag_pop()
+ * > рекомендуется вызывать в слое управления и после сбора ошибок завершать вызовом _error_bag_end()
  */
-function _error_bag_start(\ErrorBag &$return = null) : \ErrorBag
+function _error_bag_start(\ErrorBag &$current = null) : \ErrorBag
 {
-    $return = null;
+    $current = null;
 
     $stack = ErrorBagStack::getInstance();
 
-    if (! $return = $stack->hasErrorBag()) {
-        $new = new \ErrorBag();
+    if (! $current = $stack->hasErrorBag()) {
+        $_current = new \ErrorBag();
 
-        $stack->startErrorBag($new);
+        $stack->startErrorBag($_current);
 
-        $return = $new;
+        $current = $_current;
     }
 
-    return $return;
+    return $current;
 }
 
 /**
- * > получает текущий errorBag, если он есть
- * > или создает новый и устанавливает его текущим
- * > рекомендуется вызывать в слое управления и после сбора ошибок завершать вызовом _error_bag_pop()
+ * > завершает все потомки error-bag до указанного
+ * > возвращает объединение всех error-bag, которые были завершены в виде нового error-bag
  */
 function _error_bag_end(\ErrorBag $until = null) : \ErrorBag
 {
@@ -704,29 +693,46 @@ function _error_bag_end(\ErrorBag $until = null) : \ErrorBag
 }
 
 
-function _error_bag_warning($warning, $path = null, $tags = null) : void
+/**
+ * > создает и возвращает новый error-bag
+ * > делает его текущим, если до этого где-либо вызывался _error_bag_start()
+ * > рекомендуется вызывать в слое логики и после сбора ошибок завершать вызовом _error_bag_pop()
+ */
+function _error_bag_push(\ErrorBag &$new = null) : \ErrorBag
 {
+    $new = null;
+
     $stack = ErrorBagStack::getInstance();
 
-    if ($current = $stack->hasErrorBag()) {
-        $current->addWarning($warning, $path, $tags);
+    $_new = new \ErrorBag();
+
+    if ($stack->hasErrorBag()) {
+        $stack->pushErrorBag($_new);
     }
+
+    $new = $_new;
+
+    return $new;
 }
 
-function _error_bag_error($error, $path = null, $tags = null) : void
+/**
+ * > забирает крайний error-bag, если он был, делает его родителя текущим
+ * > или создает и возвращает null-object
+ */
+function _error_bag_pop(\ErrorBag $verify = null) : \ErrorBag
 {
     $stack = ErrorBagStack::getInstance();
 
-    if ($current = $stack->hasErrorBag()) {
-        $current->addError($error, $path, $tags);
-    }
-}
+    if ($stack->hasErrorBag()) {
+        $_last = $stack->popErrorBag($verify);
 
-function _error_bag_merge(\ErrorBag $errorBag, $path = null, $tags = null) : void
-{
-    $stack = ErrorBagStack::getInstance();
+        $last = $_last;
 
-    if ($current = $stack->hasErrorBag()) {
-        $current->mergeBag($errorBag, $path, $tags);
+    } else {
+        $new = new \ErrorBag();
+
+        $last = $new;
     }
+
+    return $last;
 }
