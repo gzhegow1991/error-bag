@@ -65,7 +65,7 @@ class ErrorBag implements \Countable, \IteratorAggregate
             $_tags = $error->tags;
 
             if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
-            if (isset($tags)) $_tags = array_merge($_tags ?? [], (array) $tags);
+            if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
 
             $item = new ErrorBagItem();
             $item->body = $error->body;
@@ -87,7 +87,7 @@ class ErrorBag implements \Countable, \IteratorAggregate
             $_tags = $warning->tags;
 
             if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
-            if (isset($tags)) $_tags = array_merge($_tags ?? [], (array) $tags);
+            if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
 
             $item = new ErrorBagItem();
             $item->body = $warning->body;
@@ -339,7 +339,7 @@ class ErrorBag implements \Countable, \IteratorAggregate
             $_tags = $error->tags;
 
             if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
-            if (isset($tags)) $_tags = array_merge($_tags ?? [], (array) $tags);
+            if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
 
             $item = new ErrorBagItem();
             $item->body = $error->body;
@@ -354,7 +354,7 @@ class ErrorBag implements \Countable, \IteratorAggregate
             $_tags = $warning->tags;
 
             if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
-            if (isset($tags)) $_tags = array_merge($_tags ?? [], (array) $tags);
+            if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
 
             $item = new ErrorBagItem();
             $item->body = $warning->body;
@@ -374,7 +374,7 @@ class ErrorBag implements \Countable, \IteratorAggregate
             $_tags = $error->tags;
 
             if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
-            if (isset($tags)) $_tags = array_merge($_tags ?? [], (array) $tags);
+            if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
 
             $item = new ErrorBagItem();
             $item->body = $error->body;
@@ -389,7 +389,7 @@ class ErrorBag implements \Countable, \IteratorAggregate
             $_tags = $warning->tags;
 
             if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
-            if (isset($tags)) $_tags = array_merge($_tags ?? [], (array) $tags);
+            if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
 
             $item = new ErrorBagItem();
             $item->body = $warning->body;
@@ -409,7 +409,7 @@ class ErrorBag implements \Countable, \IteratorAggregate
             $_tags = $error->tags;
 
             if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
-            if (isset($tags)) $_tags = array_merge($_tags ?? [], (array) $tags);
+            if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
 
             $item = new ErrorBagItem();
             $item->body = $error->body;
@@ -424,7 +424,7 @@ class ErrorBag implements \Countable, \IteratorAggregate
             $_tags = $warning->tags;
 
             if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
-            if (isset($tags)) $_tags = array_merge($_tags ?? [], (array) $tags);
+            if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
 
             $item = new ErrorBagItem();
             $item->body = $warning->body;
@@ -478,7 +478,7 @@ class ErrorBag implements \Countable, \IteratorAggregate
 
             $key = implode($implodeKeySeparator, $item->path);
 
-            $result[ $i ][ $key ][] = $item->body;
+            $result[ $key ][] = $item->body;
         }
 
         return $result;
@@ -568,23 +568,32 @@ class ErrorBagStack
         return $current;
     }
 
-    public function popErrorBag(ErrorBag $verify = null) : ErrorBag
+    public function popErrorBag(?ErrorBag $verify) : ?ErrorBag
     {
-        if (! $this->errorBagStack) {
-            throw new \BadMethodCallException('The `errorBagStack` should be not-empty');
-        }
-
-        $errorBagLast = array_pop($this->errorBagStack);
-
-        if ($verify && ($errorBagLast !== $verify)) {
-            throw new \RuntimeException(
-                'You possible forget somewhere to pop() previously started error bag'
-            );
-        }
-
-        $this->errorBag = $this->errorBagStack
+        $errorBagLast = $this->errorBagStack
             ? end($this->errorBagStack)
             : null;
+
+        if ($verify) {
+            if (! $errorBagLast) {
+                throw new \RuntimeException(
+                    'ErrorBag stack is empty at the moment'
+                );
+
+            } elseif ($errorBagLast !== $verify) {
+                throw new \RuntimeException(
+                    'You possible forget somewhere to pop() previously started ErrorBag'
+                );
+            }
+        }
+
+        if ($errorBagLast) {
+            array_pop($this->errorBagStack);
+
+            $this->errorBag = $this->errorBagStack
+                ? end($this->errorBagStack)
+                : null;
+        }
 
         return $errorBagLast;
     }
@@ -601,7 +610,7 @@ class ErrorBagStack
         return $new;
     }
 
-    public function endErrorBag(ErrorBag $until = null) : ErrorBag
+    public function endErrorBag(?ErrorBag $until) : ErrorBag
     {
         $count = count($this->errorBagStack);
 
@@ -638,8 +647,8 @@ class ErrorBagStack
 
 
 /**
- * > возвращает текущий error-bag, если он есть
- * > или создает и возвращает null-object
+ * > возвращает актуальный error-bag
+ * > или создает новый и делает его актуальным
  */
 function _error_bag(\ErrorBag &$current = null) : \ErrorBag
 {
@@ -650,6 +659,8 @@ function _error_bag(\ErrorBag &$current = null) : \ErrorBag
     if (! $current = $stack->hasErrorBag()) {
         $_current = new \ErrorBag();
 
+        $stack->pushErrorBag($_current);
+
         $current = $_current;
     }
 
@@ -658,32 +669,42 @@ function _error_bag(\ErrorBag &$current = null) : \ErrorBag
 
 
 /**
- * > получает текущий error-bag, если он есть
- * > или создает новый и устанавливает его текущим
- * > рекомендуется вызывать в слое управления и после сбора ошибок завершать вызовом _error_bag_end()
+ * > создает и возвращает новый error-bag, делает его актуальным
  */
-function _error_bag_start(\ErrorBag &$current = null) : \ErrorBag
+function _error_bag_push(\ErrorBag &$new = null) : \ErrorBag
 {
-    $current = null;
+    $new = null;
 
     $stack = ErrorBagStack::getInstance();
 
-    if (! $current = $stack->hasErrorBag()) {
-        $_current = new \ErrorBag();
+    $current = $stack->pushErrorBag();
 
-        $stack->startErrorBag($_current);
+    $new = $current;
 
-        $current = $_current;
-    }
-
-    return $current;
+    return $new;
 }
 
 /**
- * > завершает все потомки error-bag до указанного
+ * > забирает актуальный error-bag, если он был, делает его родителя актуальным
+ * > если указан $verify, то когда последний не равен переданному, выбросит исключение
+ */
+function _error_bag_pop(?\ErrorBag $verify) : \ErrorBag
+{
+    $stack = ErrorBagStack::getInstance();
+
+    $last = $stack->popErrorBag($verify);
+
+    $last = $last ?? new \ErrorBag();
+
+    return $last;
+}
+
+/**
+ * > завершает все error-bag
+ * > если указан $until, то завершает до указанного error-bag
  * > возвращает объединение всех error-bag, которые были завершены в виде нового error-bag
  */
-function _error_bag_end(\ErrorBag $until = null) : \ErrorBag
+function _error_bag_end(?\ErrorBag $until) : \ErrorBag
 {
     $stack = ErrorBagStack::getInstance();
 
@@ -693,46 +714,23 @@ function _error_bag_end(\ErrorBag $until = null) : \ErrorBag
 }
 
 
-/**
- * > создает и возвращает новый error-bag
- * > делает его текущим, если до этого где-либо вызывался _error_bag_start()
- * > рекомендуется вызывать в слое логики и после сбора ошибок завершать вызовом _error_bag_pop()
- */
-function _error_bag_push(\ErrorBag &$new = null) : \ErrorBag
+function _error_bag_warning($warning, $path = null, $tags = null) : void
 {
-    $new = null;
+    _error_bag($e);
 
-    $stack = ErrorBagStack::getInstance();
-
-    $_new = new \ErrorBag();
-
-    if ($stack->hasErrorBag()) {
-        $stack->pushErrorBag($_new);
-    }
-
-    $new = $_new;
-
-    return $new;
+    $e->warning($warning, $path, $tags);
 }
 
-/**
- * > забирает крайний error-bag, если он был, делает его родителя текущим
- * > или создает и возвращает null-object
- */
-function _error_bag_pop(\ErrorBag $verify = null) : \ErrorBag
+function _error_bag_error($error, $path = null, $tags = null) : void
 {
-    $stack = ErrorBagStack::getInstance();
+    _error_bag($e);
 
-    if ($stack->hasErrorBag()) {
-        $_last = $stack->popErrorBag($verify);
+    $e->error($error, $path, $tags);
+}
 
-        $last = $_last;
+function _error_bag_merge($errorBag, $path = null, $tags = null) : void
+{
+    _error_bag($e);
 
-    } else {
-        $new = new \ErrorBag();
-
-        $last = $new;
-    }
-
-    return $last;
+    $e->merge($errorBag, $path, $tags);
 }
