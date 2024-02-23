@@ -476,7 +476,7 @@ class ErrorBag implements \Countable, \IteratorAggregate
                 throw new \LogicException('Each of `items` should be instance of: ' . ErrorBagItem::class);
             }
 
-            $key = implode($implodeKeySeparator, $item->path);
+            $key = implode($implodeKeySeparator, $item->path ?? []);
 
             $result[ $key ][] = $item->body;
         }
@@ -499,7 +499,9 @@ class ErrorBag implements \Countable, \IteratorAggregate
                 ? $item
                 : $item->body;
 
-            $this->arraySet($result, $item->path, $row);
+            ($item->path)
+                ? $this->arraySet($result, $item->path, $row)
+                : $result[] = $row;
         }
 
         return $result;
