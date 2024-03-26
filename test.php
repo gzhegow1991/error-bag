@@ -1,10 +1,11 @@
 <?php
 
 use Gzhegow\ErrorBag\ErrorBagStack;
-use function Gzhegow\ErrorBag\_error_bag;
-use function Gzhegow\ErrorBag\_error_bag_pop;
-use function Gzhegow\ErrorBag\_error_bag_end;
-use function Gzhegow\ErrorBag\_error_bag_push;
+use function Gzhegow\ErrorBag\error_bag;
+use function Gzhegow\ErrorBag\error_bag_pop;
+use function Gzhegow\ErrorBag\error_bag_end;
+use function Gzhegow\ErrorBag\error_bag_push;
+use function Gzhegow\ErrorBag\error_bag_start;
 
 
 require_once __DIR__ . '/vendor/autoload.php';
@@ -13,15 +14,15 @@ require_once __DIR__ . '/vendor/autoload.php';
 function a()
 {
     // > получаем текущий error-bag
-    _error_bag($b);
+    error_bag($b);
 
     // > создаем дочерний error-bag, который будет отвечать за функцию aa()
-    _error_bag_push($bb);
+    error_bag_push($bb);
 
     $result = aa();
 
     // > завершаем дочерний error-bag (опционально - передаем его самого для проверки, не забыли ли глубже закрыть другие)
-    _error_bag_pop($bb);
+    error_bag_pop($bb);
 
     // > соединяем закрытый в указанный с присвоением пути и тегов
     $b->merge($bb, 'aa', 'tag_aa');
@@ -34,16 +35,16 @@ function a()
 
 function aa()
 {
-    _error_bag($b);
+    error_bag($b);
 
     $result = [];
 
     for ( $i = 0; $i <= 5; $i++ ) {
-        _error_bag_push($bb);
+        error_bag_push($bb);
 
         $_result = aaa();
 
-        _error_bag_pop($bb);
+        error_bag_pop($bb);
 
         // > соединяем закрытый в указанный как предупреждения (если ошибка была решена) с присвоением пути и тегов
         $b->message($bb, [ 'aaa', $i ], 'tag_aaa');
@@ -64,16 +65,16 @@ function aa()
 
 function aaa()
 {
-    _error_bag($b);
+    error_bag($b);
 
     $result = [];
 
     for ( $i = 0; $i <= 5; $i++ ) {
-        _error_bag_push($bb);
+        error_bag_push($bb);
 
         $_result = aaaa($i);
 
-        _error_bag_pop($bb);
+        error_bag_pop($bb);
 
         $b->message($bb, [ 'aaaa', $i ], 'tag_aaaa');
         if ($bb->hasErrors()) {
@@ -88,7 +89,7 @@ function aaa()
 
 function aaaa($i)
 {
-    _error_bag($b);
+    error_bag($b);
 
     if ($i === 1) {
         // > добавляем ошибку, можно указать путь и теги
@@ -116,13 +117,13 @@ function aaaa($i)
 function main()
 {
     // > включаем отлов ошибок
-    _error_bag($b);
+    error_bag_start($b);
 
     $result = a();
     var_dump($result); // > какой-то результат вашей логики
 
     // > завершаем отлов ошибок, иначе дальнейший код продолжит отлавливать в открытый ранее error-bag
-    _error_bag_end($b);
+    error_bag_end($b);
 
 
     // var_dump($b->toArrayNested($asObject = true)); // > все проблемы вложенным массивом    
