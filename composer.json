@@ -3,6 +3,25 @@
   "type": "library",
   
   "require": {
-    "php": "^7.2|^8.0"
+    "php": "^7.2|^8.0",
+    
+    "ext-json": "*"
+  },
+  
+  "autoload": {
+    "psr-4": {
+      "Gzhegow\\ErrorBag\\": "src"
+    },
+    "files": [
+      "helpers/array.php",
+      "helpers/assert.php",
+      "helpers/error-bag.php"
+    ]
+  },
+  
+  "config": {
+    "optimize-autoloader": true,
+    
+    "sort-packages": false
   }
 }

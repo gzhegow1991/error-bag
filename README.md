@@ -11,49 +11,78 @@
 Главная задача инструмента: собрать ошибки в единый объект, чтобы вывести отчет в API или лог
 
 Дополнительные задачи:
+
 1) соединить ошибки (или часть ошибок) из одной операции с ошибками из другой
+
 ```
 Например, вы хотите отослать 10 телефонов, но из них каждый идет по 2 раза, то есть телефонов по сути 5. Вы отошлете 5 записей и ошибок будет 5.  
 Но исходные данные предполагают, что их было 10. Вам потребуется копировать ошибки по 2 раза, чтобы сохранить их в очередь каждые в свою ячейку
 Очень удобно выполняя массовую операцию присвоить группе ошибок тег, а далее при дублировании по ячейкам искать по этому тегу.
 ```
+
 2) уменьшить количество классов и время выполнения при обработке ошибок
+
 ```
 Чтобы выстрелить исключением - вы должны создать класс (опционально, привязать к нему интерфейс) и потом по этому искать в блоке try/catch
 Проблемы try/catch:
 а) Присвоение типа ошибки в месте, где её создали, не имеет смысла, но несколько ошибок одного типа могут стать важны в родительской функции управления
 б) Присовение типа на месте - это то же самое, что присвоить числовой код, только требует еще и класс для этого создавать
 ```
+
 3) Принимать решение на месте по наличию ошибок и помечать их обработанными
+
 ```
 Старый добрый `if (count($errors)) return null;`
 Одна беда. Ошибки нижнего уровня не всегда ошибки для верхнего, но они никуда не исчезали для отчета об операции.
 Инструмент позволяет превратить ошибки в предупреждения, чтобы в управляющей функции проверка прошла, а в дочерней - нет.
 ```
+
 4) Позволяет собирать по частям путь возникновения ошибки
+
 ```
 Вот эта задача с которой исключения справляются на отлично - они собирают стек-трейс.  
 Одна проблема. Сбор стек трейса занимает время. Вы теряете время на сбор ненужных трейсов, которые вы обработаете.
 Трейсы нужны только если ошибка доберется до самого верха, то есть останется не пойманной.
 ```
+
 5) Не трогать старый код и не менять сигнатуру функций и методов
+
 ```
 Чтобы собирать ошибки в виде массивов - самое болючее - это тянуть наверх массив с собранными ошибками и менять выходные/входные типы для возврата этих ошибок.
 Этот инструмент работает глобально и менять ничего не придется.
 ```
 
-#### Важное замечание
-Если мы используем инструмент для принятия решений через проверку ($e->hasErrors()), то инструмент должен быть включен всегда.  
-Сначала я реализовывал его так, чтобы в нужный момент инструмент можно было выключить для некоторой части кода (например, даже если код вызовов error_bag остался, он не тратил память и процессор на свою работу).
-Однако в этом случае места принятия решения всегда будут возвращать, что ошибок нет, а значит - логика поломается.  
-Так что, теперь отключение error_bag в слое управления носит рекомендуемый характер и по сути будет просто очищать стек, но функции будут работать всегда.
+#### По поводу "экономии памяти"
+
+Сначала я реализовывал его так, чтобы его можно было выключить в нужный момент, чтобы экономить память.
+Однако точки принятия решений hasErrors() будут тогда возвращать что ошибок нет, а значит программа сделает то, что не должна.
+
+
+#### По поводу "стека"
+
+Если ваша программа бросает исключения, которые потом вы отловили, вы могли пропустить вызов _error_bag_pop()
+Привяжите set_error_handler/set_exception_handler так, чтобы он завершал начатые error_bag() до некоторого уровня или полностью или не забывайте это делать вручную в try/catch.
+Для этого и сделана проверка _error_bag_pop(verify), которая проверяет правильность error_bag и бросает ошибку, если туда попал не тот, что сейчас последний в стеке.
+
+
+#### По поводу "дисклеймера"
 
 Обычно, когда я предлагаю идею в PHP сообщество, проходит 2 года и потом её внедряют как чью-то ещё. Сегодня 10.02.2024.
+
+
+#### Как пользоваться
 
 ```php
 <?php
 
-require_once __DIR__ . '/error-bag.php';
+use Gzhegow\ErrorBag\ErrorBagStack;
+use function Gzhegow\ErrorBag\_error_bag;
+use function Gzhegow\ErrorBag\_error_bag_pop;
+use function Gzhegow\ErrorBag\_error_bag_end;
+use function Gzhegow\ErrorBag\_error_bag_push;
+
+
+require_once __DIR__ . '/vendor/autoload.php';
 
 
 function a()
@@ -71,6 +100,7 @@ function a()
 
     // > соединяем закрытый в указанный с присвоением пути и тегов
     $b->merge($bb, 'aa', 'tag_aa');
+
     // > то же самое, только объединение произойдет в актуальный (текущий)
     // _error_bag_merge($bb, 'aa', 'tag_aa');
 
@@ -91,9 +121,10 @@ function aa()
         _error_bag_pop($bb);
 
         // > соединяем закрытый в указанный как предупреждения (если ошибка была решена) с присвоением пути и тегов
-        $b->warning($bb, [ 'aaa', $i ], 'tag_aaa');
+        $b->message($bb, [ 'aaa', $i ], 'tag_aaa');
+
         // то же самое, только в актуальный (текущий)
-        // _error_bag_warning($bb, [ 'aaa', $i ], 'tag_aaa');
+        // _error_bag_message($bb, [ 'aaa', $i ], 'tag_aaa');
 
         // > если во вложенном были ошибки - элемент пропускаем (принятие решение в родителе в зависимости от потомка)
         if ($bb->hasErrors()) {
@@ -119,7 +150,7 @@ function aaa()
 
         _error_bag_pop($bb);
 
-        $b->warning($bb, [ 'aaaa', $i ], 'tag_aaaa');
+        $b->message($bb, [ 'aaaa', $i ], 'tag_aaaa');
         if ($bb->hasErrors()) {
             continue;
         }
@@ -143,12 +174,12 @@ function aaaa($i)
 
     } elseif ($i % 3) {
         // > добавляем предупреждение, можно указать путь и теги
-        $b->warning("Warning {$i}", null, 'tag3'); // 3
+        $b->message("Message {$i}", null, 'tag3'); // 3
     }
 
     // > принимаем решение в текущей функции, если нужно
     // if (! $b->hasErrors()) {
-    // if (! $b->hasWarnings()) {
+    // if (! $b->hasMessages()) {
     if (! $b->isEmpty()) {
         return null;
     }
@@ -160,51 +191,58 @@ function aaaa($i)
 function main()
 {
     // > включаем отлов ошибок
-    _error_bag($e);
-
+    _error_bag($b);
 
     $result = a();
-    // var_dump($result); // > какой-то результат вашей логики
+    var_dump($result); // > какой-то результат вашей логики
+
+    // > завершаем отлов ошибок, иначе дальнейший код продолжит отлавливать в открытый ранее error-bag
+    _error_bag_end($b);
 
 
-    // var_dump($e->toArray($implodeKeySeparator = '.')); // > все проблемы массивом
-    // var_dump($e->getErrors()->toArray('.')); // > все ошибки массивом
-    // var_dump($e->getWarnings()->toArray('.')); // > все предупреждения массивом
+    // var_dump($b->toArrayNested($asObject = true)); // > все проблемы вложенным массивом    
 
-    // var_dump($e->toArrayNested($asObject = true)); // > все проблемы вложенным массивом
+    var_dump($b->toArray($implodeKeySeparator = '|')); // > все проблемы массивом
+    // var_dump($b->getErrors()->toArray('|')); // > все ошибки массивом
+    // var_dump($b->getMessages()->toArray('|')); // > все сообщения массивом
 
-
-    $ee = $e->getByTags($andTags = [ 'tag_aaa', 'tag1' ]);
-    if (! (6 === count($ee))) throw new \RuntimeException();
-
-    $ee = $e->getByTags($tag = 'tag1', $orTag = 'tag2');
-    if (! (18 === count($ee))) throw new \RuntimeException();
-    
-    $ee = $e->getByTags($andTags = [ 'tag1', 'tag2' ]);
-    if (! (0 === count($ee))) throw new \RuntimeException();
-
-    $ee = $e->getByTags($andTags = (object) [ 'tag_aaa', 'tag1' ], $orAndTags = (object) [ 'tag_aaa', 'tag2' ]);
-    if (! (18 === count($ee))) throw new \RuntimeException();
-
-
-    $ee = $e->getByPath($path = [ 'aaa', 1 ]);
-    if (! (5 === count($ee))) throw new \RuntimeException();
-
-    $ee = $e->getByPath($path = [ 'aaa', 1 ], $orPath = [ 'aaa', 2 ]);
-    if (! (10 === count($ee))) throw new \RuntimeException();
-
-    $ee = $e->getByPath($andPathes = (object) [ [ 'aaa', 1 ], [ 'aaa', 2 ] ]);
-    if (! (0 === count($ee))) throw new \RuntimeException();    
-    
-    $ee = $e->getByPath($andPathes = (object) [ [ 'aaa', 1 ], [ 'aaaa', 1 ] ], $orAndPathes = (object) [ [ 'aaa', 1 ], [ 'aaaa', 2 ] ]);
-    if (! (2 === count($ee))) throw new \RuntimeException();
-
-
-    // > завершаем отлов ошибок, иначе следующая функция продолжит отлавливать в объявленный ранее error-bag
-    _error_bag_end($e);
 
     $stack = ErrorBagStack::getInstance();
     if (! (null === $stack->hasErrorBag())) throw new \RuntimeException();
+    echo 'Test OK' . PHP_EOL;
+
+    $bb = $b->getByTags($andTags = [ 'tag_aaa', 'tag1' ]);
+    if (! (6 === count($bb))) throw new \RuntimeException();
+    echo 'Test OK' . PHP_EOL;
+
+    $bb = $b->getByTags($tag = 'tag1', $orTag = 'tag2');
+    if (! (18 === count($bb))) throw new \RuntimeException();
+    echo 'Test OK' . PHP_EOL;
+
+    $bb = $b->getByTags($andTags = [ 'tag1', 'tag2' ]);
+    if (! (0 === count($bb))) throw new \RuntimeException();
+    echo 'Test OK' . PHP_EOL;
+
+    $bb = $b->getByTags($andTags = (object) [ 'tag_aaa', 'tag1' ], $orAndTags = (object) [ 'tag_aaa', 'tag2' ]);
+    if (! (18 === count($bb))) throw new \RuntimeException();
+    echo 'Test OK' . PHP_EOL;
+
+
+    $bb = $b->getByPath($path = [ 'aaa', 1 ]);
+    if (! (5 === count($bb))) throw new \RuntimeException();
+    echo 'Test OK' . PHP_EOL;
+
+    $bb = $b->getByPath($path = [ 'aaa', 1 ], $orPath = [ 'aaa', 2 ]);
+    if (! (10 === count($bb))) throw new \RuntimeException();
+    echo 'Test OK' . PHP_EOL;
+
+    $bb = $b->getByPath($andPathes = (object) [ [ 'aaa', 1 ], [ 'aaa', 2 ] ]);
+    if (! (0 === count($bb))) throw new \RuntimeException();
+    echo 'Test OK' . PHP_EOL;
+
+    $bb = $b->getByPath($andPathes = (object) [ [ 'aaa', 1 ], [ 'aaaa', 1 ] ], $orAndPathes = (object) [ [ 'aaa', 1 ], [ 'aaaa', 2 ] ]);
+    if (! (2 === count($bb))) throw new \RuntimeException();
+    echo 'Test OK' . PHP_EOL;
 }
 
 
