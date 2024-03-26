@@ -142,7 +142,7 @@ function error_bag_message($message, $path = null, $tags = null) : void
     $e->message($message, $path, $tags);
 }
 
-function _error_bag_error($error, $path = null, $tags = null) : void
+function error_bag_error($error, $path = null, $tags = null) : void
 {
     error_bag($e);
 
