@@ -27,7 +27,7 @@ class ErrorBag implements \Countable, \IteratorAggregate
 
     public function isEmpty() : bool
     {
-        return ! empty($this->errors) || ! empty($this->messages);
+        return empty($this->errors) && empty($this->messages);
     }
 
 
