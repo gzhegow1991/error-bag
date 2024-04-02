@@ -3,6 +3,36 @@
 namespace Gzhegow\ErrorBag;
 
 
+function _assert($error, callable $fn, array $args)
+{
+    try {
+        $result = call_user_func_array($fn, $args);
+    }
+    catch ( \Throwable $e ) {
+        throw _assert_throw($error, $e->getCode(), $e->getPrevious());
+    }
+
+    return $result;
+}
+
+/**
+ * @param mixed $value
+ *
+ * @return string
+ */
+function _assert_type($value) : string
+{
+    $_value = null
+        ?? (($value === null) ? '{ NULL }' : null)
+        ?? (($value === false) ? '{ FALSE }' : null)
+        ?? (($value === true) ? '{ TRUE }' : null)
+        ?? (is_object($value) ? ('{ object(' . get_class($value) . ' # ' . spl_object_id($value) . ') }') : null)
+        ?? (is_resource($value) ? ('{ resource(' . gettype($value) . ' # ' . ((int) $value) . ') }') : null)
+        ?? '{ ' . gettype($value) . ' }';
+
+    return $_value;
+}
+
 /**
  * @param mixed $value
  *
@@ -10,36 +40,40 @@ namespace Gzhegow\ErrorBag;
  */
 function _assert_dump($value) : string
 {
-    $_value = null
-        ?? (($value === null) ? 'NULL' : null)
-        ?? (($value === false) ? 'FALSE' : null)
-        ?? (($value === true) ? 'TRUE' : null)
-        ?? (is_int($value) ? (var_export($value, 1)) : null) // INF
-        ?? (is_float($value) ? (var_export($value, 1)) : null) // NAN
-        ?? (is_string($value) ? ('"' . $value . '"') : null)
-        ?? (is_object($value) ? ('object(' . get_class($value) . ' # ' . spl_object_id($value) . ')') : null)
-        ?? (is_resource($value) ? ('resource(' . gettype($value) . ' # ' . (int) $value . ')') : null)
-        ?? null;
+    $_value = null;
 
-    if (null === $_value) {
-        if (is_iterable($value)) {
-            foreach ( $value as $k => $v ) {
-                $value[ $k ] = null
-                    ?? (is_array($v) ? 'array(' . count($v) . ')' : null)
-                    ?? (is_iterable($v) ? 'iterable' : null)
-                    ?? _assert_dump($v);
-            }
+    if (! is_iterable($value)) {
+        $_value = null
+            ?? (($value === null) ? '{ NULL }' : null)
+            ?? (($value === false) ? '{ FALSE }' : null)
+            ?? (($value === true) ? '{ TRUE }' : null)
+            ?? (is_object($value) ? ('{ object(' . get_class($value) . ' # ' . spl_object_id($value) . ') }') : null)
+            ?? (is_resource($value) ? ('{ resource(' . gettype($value) . ' # ' . ((int) $value) . ') }') : null)
+            //
+            ?? (is_int($value) ? (var_export($value, 1)) : null) // INF
+            ?? (is_float($value) ? (var_export($value, 1)) : null) // NAN
+            ?? (is_string($value) ? ('"' . $value . '"') : null)
+            //
+            ?? null;
 
-            $_value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_LINE_TERMINATORS);
+    } else {
+        foreach ( $value as $k => $v ) {
+            $value[ $k ] = null
+                ?? (is_array($v) ? '{ array(' . count($v) . ') }' : null)
+                ?? (is_iterable($v) ? '{ iterable(' . get_class($value) . ' # ' . spl_object_id($value) . ') }' : null)
+                ?? _assert_dump($v);
         }
-    }
 
-    if ($value && (null === $_value)) {
-        $_value = '> "' . gettype($value) . '"';
+        $_value = var_export($value, true);
+
+        $_value = str_replace("\n", ' ', $_value);
+        $_value = preg_replace('/\s+/', ' ', $_value);
     }
 
     if (null === $_value) {
-        throw new \LogicException('Unable to dump variable');
+        throw _assert_throw(
+            [ 'Unable to dump variable', $value ]
+        );
     }
 
     return $_value;
@@ -50,16 +84,12 @@ function _assert_dump($value) : string
  *
  * @return \LogicException|\RuntimeException|null
  */
-function _assert_throw($error) : ?object
+function _assert_throw($error, $code = null, $previous = null) : ?object
 {
-    if (is_a($error, \Throwable::class)) {
-        throw new \LogicException('The `error` should be: string|array|\LogicException|\RuntimeException');
-    }
-
     $_error = null
         ?? (is_a($error, \LogicException::class) ? $error : null)
         ?? (is_a($error, \RuntimeException::class) ? $error : null)
-        ?? (is_string($error) ? new \LogicException($error) : null)
+        ?? (is_string($error) ? new \LogicException($error, $code, $previous) : null)
         ?? (is_array($error)
             ? new \LogicException(
                 array_shift($error) . ":"
@@ -67,6 +97,13 @@ function _assert_throw($error) : ?object
             )
             : null
         );
+
+    if (null === $_error) {
+        throw new \LogicException([
+            'The `error` should be: string|array|\LogicException|\RuntimeException',
+            $error,
+        ]);
+    }
 
     return $_error;
 }
