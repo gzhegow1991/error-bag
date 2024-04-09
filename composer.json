@@ -15,10 +15,11 @@
     "files": [
       "helpers/array.php",
       "helpers/assert.php",
-      "helpers/error-bag.php"
+      "helpers/error-bag.php",
+      "helpers/php.php"
     ]
   },
-
+  
   "minimum-stability": "dev",
   "prefer-stable": true,
   

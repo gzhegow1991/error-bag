@@ -121,8 +121,8 @@ function error_bag_path(...$path) : string
         $p = [ $p ];
 
         $implode = [];
-        array_walk_recursive($p, static function ($string) use (&$implode) {
-            $implode[] = _assert_string($string);
+        array_walk_recursive($p, static function ($value) use (&$implode) {
+            $implode[] = _filter_string($value);
         });
         $implode = implode('.', $implode);
 

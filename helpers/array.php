@@ -8,9 +8,10 @@ function _array_path($path, ...$pathes) : array
     $result = [];
 
     $array = [ $path, $pathes ];
+
     array_walk_recursive($array, function ($value) use (&$result) {
-        if (null !== ($_value = _assert_string($value))) {
-            $result[] = $_value;
+        if (null !== $value) {
+            $result[] = _filter_string($value);
         }
     });
 
@@ -49,8 +50,8 @@ function &_array_put(array &$dst, $path, $value) // : &mixed
 
             throw new \RuntimeException(
                 "Trying to traverse scalar value: "
-                . _assert_dump($p)
-                . ' / ' . _assert_dump($path)
+                . _php_dump($p)
+                . ' / ' . _php_dump($path)
             );
         }
     }
