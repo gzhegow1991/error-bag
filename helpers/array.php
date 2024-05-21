@@ -11,7 +11,7 @@ function _array_path($path, ...$pathes) : array
 
     array_walk_recursive($array, function ($value) use (&$result) {
         if (null !== $value) {
-            $result[] = _filter_string($value);
+            $result[] = _filter_str($value);
         }
     });
 
@@ -19,14 +19,14 @@ function _array_path($path, ...$pathes) : array
 }
 
 /**
- * @throws \RuntimeException
+ * @throws \LogicException|\RuntimeException
  */
-function &_array_put(array &$dst, $path, $value) // : &mixed
+function &_array_put_path(array &$dst, $path, $value) // : &mixed
 {
     $fullpath = _array_path($path);
 
     if (! $fullpath) {
-        throw new \LogicException(
+        throw _php_throw(
             'Unable to ' . __FUNCTION__ . ' due to empty path'
         );
     }
@@ -62,13 +62,9 @@ function &_array_put(array &$dst, $path, $value) // : &mixed
 }
 
 /**
- * @throws \RuntimeException
+ * @throws \LogicException|\RuntimeException
  */
-function _array_set(array &$dst, $path, $value) // : mixed
+function _array_set_path(array &$dst, $path, $value) : void
 {
-    // > gzhegow, array_put returns reference, this function returns value
-
-    $ref = _array_put($dst, $path, $value);
-
-    return $ref;
+    _array_put_path($dst, $path, $value);
 }

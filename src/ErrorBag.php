@@ -2,8 +2,17 @@
 
 namespace Gzhegow\ErrorBag;
 
-class ErrorBag implements \Countable, \IteratorAggregate
+class ErrorBag implements ErrorBagInterface
 {
+    const TYPE_ERR = 'ERR';
+    const TYPE_MSG = 'MSG';
+
+    const LIST_TYPE = [
+        self::TYPE_ERR => true,
+        self::TYPE_MSG => true,
+    ];
+
+
     /**
      * @var ErrorBagItem[]
      */
@@ -14,20 +23,38 @@ class ErrorBag implements \Countable, \IteratorAggregate
     protected $messages;
 
 
-    public function count()
+    public function count() : int
     {
-        return count($this->errors ?? []) + count($this->messages ?? []);
+        return 0
+            + count($this->errors ?? [])
+            + count($this->messages ?? []);
     }
 
-    public function getIterator()
+    public function getIterator() : \Traversable
     {
-        return new \ArrayIterator(array_merge($this->errors ?? [], $this->messages ?? []));
+        return new \ArrayIterator(
+            array_merge(
+                $this->errors ?? [],
+                $this->messages ?? []
+            )
+        );
     }
 
 
     public function isEmpty() : bool
     {
         return empty($this->errors) && empty($this->messages);
+    }
+
+
+    public function getItems() : array
+    {
+        $items = [
+            static::TYPE_ERR => $this->errors ?? [],
+            static::TYPE_MSG => $this->messages ?? [],
+        ];
+
+        return $items;
     }
 
 
@@ -430,8 +457,8 @@ class ErrorBag implements \Countable, \IteratorAggregate
 
         $result = [];
 
-        $result[ 'errors' ] = $this->convertToArray($this->errors ?? [], $implodeKeySeparator);
-        $result[ 'messages' ] = $this->convertToArray($this->messages ?? [], $implodeKeySeparator);
+        $result[ static::TYPE_ERR ] = $this->convertToArray($this->errors ?? [], $implodeKeySeparator);
+        $result[ static::TYPE_MSG ] = $this->convertToArray($this->messages ?? [], $implodeKeySeparator);
 
         return $result;
     }
@@ -442,8 +469,8 @@ class ErrorBag implements \Countable, \IteratorAggregate
 
         $result = [];
 
-        $result[ 'errors' ] = $this->convertToArrayNested($this->errors ?? [], $asObject);
-        $result[ 'messages' ] = $this->convertToArrayNested($this->messages ?? [], $asObject);
+        $result[ static::TYPE_ERR ] = $this->convertToArrayNested($this->errors ?? [], $asObject);
+        $result[ static::TYPE_MSG ] = $this->convertToArrayNested($this->messages ?? [], $asObject);
 
         return $result;
     }
@@ -486,7 +513,7 @@ class ErrorBag implements \Countable, \IteratorAggregate
                 : $item->body;
 
             ($item->path)
-                ? _array_set($result, $item->path, $row)
+                ? _array_set_path($result, $item->path, $row)
                 : $result[] = $row;
         }
 
