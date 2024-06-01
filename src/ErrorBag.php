@@ -513,7 +513,7 @@ class ErrorBag implements ErrorBagInterface
                 : $item->body;
 
             ($item->path)
-                ? _array_set_path($result, $item->path, $row)
+                ? Lib::array_set_path($result, $item->path, $row)
                 : $result[] = $row;
         }
 

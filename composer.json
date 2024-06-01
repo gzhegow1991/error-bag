@@ -1,38 +1,32 @@
 {
   "name": "gzhegow/error-bag",
   "type": "library",
-  
+
   "authors": [
     {
       "name": "gzhegow",
       "email": "6562680@gmail.com"
     }
   ],
-  
+
   "require": {
     "php": "^7.2|^8.0",
-    
+
     "ext-json": "*"
   },
-  
+
   "autoload": {
     "psr-4": {
       "Gzhegow\\ErrorBag\\": "src"
-    },
-    "files": [
-      "helpers/array.php",
-      "helpers/assert.php",
-      "helpers/error-bag.php",
-      "helpers/php.php"
-    ]
+    }
   },
-  
+
   "minimum-stability": "dev",
   "prefer-stable": true,
-  
+
   "config": {
     "optimize-autoloader": true,
-    
+
     "sort-packages": false
   }
 }
