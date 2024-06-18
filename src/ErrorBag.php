@@ -2,7 +2,10 @@
 
 namespace Gzhegow\ErrorBag;
 
-class ErrorBag implements ErrorBagInterface
+use Gzhegow\ErrorBag\Exception\LogicException;
+
+
+class ErrorBag
 {
     const TYPE_ERR = 'ERR';
     const TYPE_MSG = 'MSG';
@@ -14,509 +17,188 @@ class ErrorBag implements ErrorBagInterface
 
 
     /**
-     * @var ErrorBagItem[]
+     * @var ErrorBagFactoryInterface
      */
-    protected $errors;
+    protected $factory;
     /**
-     * @var ErrorBagItem[]
+     * @var ErrorBagStackInterface
      */
-    protected $messages;
+    protected $stack;
 
 
-    public function count() : int
+    public function __construct(
+        ErrorBagFactoryInterface $factory,
+        ErrorBagStackInterface $stack
+    )
     {
-        return 0
-            + count($this->errors ?? [])
-            + count($this->messages ?? []);
-    }
-
-    public function getIterator() : \Traversable
-    {
-        return new \ArrayIterator(
-            array_merge(
-                $this->errors ?? [],
-                $this->messages ?? []
-            )
-        );
+        $this->factory = $factory;
+        $this->stack = $stack;
     }
 
 
-    public function isEmpty() : bool
+    public function getFactory() : ErrorBagFactoryInterface
     {
-        return empty($this->errors) && empty($this->messages);
+        return $this->factory;
+    }
+
+    public function getStack() : ErrorBagStackInterface
+    {
+        return $this->stack;
     }
 
 
-    public function getItems() : array
+    /**
+     * > Позволяет сбросить стек пулов на другой или на пустой, возвращает текущий
+     */
+    public static function reset() : ErrorBagStackInterface
     {
-        $items = [
-            static::TYPE_ERR => $this->errors ?? [],
-            static::TYPE_MSG => $this->messages ?? [],
-        ];
+        return static::getInstance()->doReset();
+    }
 
-        return $items;
+    protected function doReset(ErrorBagStackInterface $previous = null) : ErrorBagStackInterface
+    {
+        $latest = $this->stack;
+
+        $this->stack = $previous ?? $this->factory->newErrorBagStacK();
+
+        return $latest;
     }
 
 
-    public function hasErrors() : bool
+    /**
+     * > Создает дочерний / новый пул
+     */
+    public static function begin(?ErrorBagPoolInterface &$new_) : ErrorBagPoolInterface
     {
-        return ! empty($this->errors);
+        return static::getInstance()->doBegin($new_);
     }
 
-    public function hasMessages() : bool
+    protected function doBegin(?ErrorBagPoolInterface &$new_) : ?ErrorBagPoolInterface
     {
-        return ! empty($this->messages);
+        $new_ = null;
+
+        $new = $this->factory->newErrorBagPool();
+
+        $this->stack->push($new);
+
+        $new_ = $new;
+
+        return $new;
     }
 
 
-    public function getErrors() : self
+    /**
+     * > Возвращает текущий / создает новый пул
+     */
+    public static function get(ErrorBagPoolInterface &$new_ = null) : ErrorBagPoolInterface
     {
-        $instance = new static();
+        return static::getInstance()->doGet($new_);
+    }
 
-        foreach ( $this->errors ?? [] as $error ) {
-            $_path = $error->path;
-            $_tags = $error->tags;
+    protected function doGet(ErrorBagPoolInterface &$current_ = null) : ErrorBagPoolInterface
+    {
+        $current_ = null;
 
-            if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
-            if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
+        if (! $current = $this->stack->current()) {
+            $current = $this->factory->newErrorBagPool();
 
-            $item = new ErrorBagItem();
-            $item->body = $error->body;
-            $item->path = $_path;
-            $item->tags = $_tags;
-
-            $instance->errors[] = $item;
+            $this->stack->push($current);
         }
 
-        return $instance;
-    }
+        $current_ = $current;
 
-    public function getMessages() : self
-    {
-        $instance = new static();
-
-        foreach ( $this->messages ?? [] as $message ) {
-            $_path = $message->path;
-            $_tags = $message->tags;
-
-            if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
-            if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
-
-            $item = new ErrorBagItem();
-            $item->body = $message->body;
-            $item->path = $_path;
-            $item->tags = $_tags;
-
-            $instance->messages[] = $item;
-        }
-
-        return $instance;
+        return $current;
     }
 
 
-    public function getByPath($and, ...$orAnd) : self
+    /**
+     * > Завершает пул, если передать $verify - проверит, что пул был крайним в стеке
+     * > Если не указать $until, завершит один последний пул
+     */
+    public static function end(?ErrorBagPoolInterface $verify) : ErrorBagPoolInterface
     {
-        array_unshift($orAnd, $and);
-
-        $_orAnd = [];
-        foreach ( $orAnd as $i => $and ) {
-            $_and = [];
-            if ($and instanceof \stdClass) {
-                foreach ( get_object_vars($and) as $v ) {
-                    $_and[] = (array) $v;
-                }
-
-            } else {
-                $_and[] = (array) $and;
-            }
-
-            foreach ( $_and as $ii => $path ) {
-                $_orAnd[ $i ][ $ii ] = "\0" . implode("\0", (array) $path) . "\0";
-            }
-        }
-
-        $instance = new static();
-
-        foreach ( $this->errors ?? [] as $error ) {
-            $pathString = "\0" . implode("\0", $error->path ?? []) . "\0";
-
-            $found = true;
-
-            foreach ( $_orAnd as $_and ) {
-                $found = true;
-
-                foreach ( $_and as $andPathString ) {
-                    if (false === strpos($pathString, $andPathString)) {
-                        $found = false;
-
-                        break;
-                    }
-                }
-
-                if ($found) {
-                    break;
-                }
-            }
-
-            if ($found) {
-                $instance->errors[] = $error;
-            }
-        }
-
-        foreach ( $this->messages ?? [] as $message ) {
-            $pathString = "\0" . implode("\0", $message->path ?? []) . "\0";
-
-            $found = true;
-
-            foreach ( $_orAnd as $_and ) {
-                $found = true;
-
-                foreach ( $_and as $andPathString ) {
-                    if (false === strpos($pathString, $andPathString)) {
-                        $found = false;
-
-                        break;
-                    }
-                }
-
-                if ($found) {
-                    break;
-                }
-            }
-
-            if ($found) {
-                $instance->messages[] = $message;
-            }
-        }
-
-        return $instance;
+        return static::getInstance()->doEnd($verify);
     }
 
-    public function getByTags($and, ...$orAnd) : self
+    protected function doEnd(?ErrorBagPoolInterface $verify) : ErrorBagPoolInterface
     {
-        array_unshift($orAnd, $and);
+        $result = $this->stack->pop($verify);
 
-        $_orAnd = [];
-        foreach ( $orAnd as $i => $and ) {
-            $_and = [];
-            if ($and instanceof \stdClass) {
-                foreach ( get_object_vars($and) as $v ) {
-                    $_and[] = (array) $v;
-                }
-
-            } else {
-                $_and[] = (array) $and;
-            }
-
-            foreach ( $_and as $ii => $tags ) {
-                $_orAnd[ $i ][ $ii ] = $tags;
-            }
-        }
-
-        $instance = new static();
-
-        foreach ( $this->errors ?? [] as $error ) {
-            $tags = $error->tags ?? [];
-
-            $found = true;
-
-            foreach ( $_orAnd as $_and ) {
-                $found = true;
-
-                foreach ( $_and as $andTags ) {
-                    if (! $andTags) {
-                        continue;
-                    }
-
-                    if (array_diff($andTags, $tags)) {
-                        $found = false;
-
-                        break;
-                    }
-                }
-
-                if ($found) {
-                    break;
-                }
-            }
-
-            if ($found) {
-                $instance->errors[] = $error;
-            }
-        }
-
-        foreach ( $this->messages ?? [] as $message ) {
-            $tags = $message->tags ?? [];
-
-            $found = true;
-
-            foreach ( $_orAnd as $_and ) {
-                $found = true;
-
-                foreach ( $_and as $andTags ) {
-                    if (! $andTags) {
-                        continue;
-                    }
-
-                    if (array_diff($andTags, $tags)) {
-                        $found = false;
-
-                        break;
-                    }
-                }
-
-                if ($found) {
-                    break;
-                }
-            }
-
-            if ($found) {
-                $instance->messages[] = $message;
-            }
-        }
-
-        return $instance;
+        return $result;
     }
 
 
-    public function errors(array $errors, $path = null, $tags = null) : void
+    /**
+     * > Завершает стек до указанного пула, и возвращает новый пул
+     * > Если не указать $until, завершит один последний пул
+     */
+    public static function capture(ErrorBagPoolInterface $until) : ErrorBagPoolInterface
     {
-        foreach ( $errors as $idx => $error ) {
-            $this->error(
-                $error,
-                isset($path) ? array_merge((array) $path, [ $idx ]) : null,
-                $tags
+        return static::getInstance()->doCapture($until);
+    }
+
+    protected function doCapture(ErrorBagPoolInterface $until) : ErrorBagPoolInterface
+    {
+        $result = $this->stack->flush($until);
+
+        return $result;
+    }
+
+
+    /**
+     * > Завершает стек пулов, и возвращает новый пул
+     */
+    public static function flush() : ErrorBagPoolInterface
+    {
+        return static::getInstance()->doFlush();
+    }
+
+    protected function doFlush() : ErrorBagPoolInterface
+    {
+        $result = $this->stack->flush();
+
+        return $result;
+    }
+
+
+    /**
+     * > Возвращает текущий ErrorBag или создает null-object
+     */
+    public static function current() : ErrorBagPoolInterface
+    {
+        return static::getInstance()->doCurrent();
+    }
+
+    protected function doCurrent() : ErrorBagPoolInterface
+    {
+        $current = $this->stack->current();
+
+        return $current ?? $this->factory->newErrorBagPool();
+    }
+
+
+    public static function getInstance(ErrorBagFactoryInterface $factory = null) : self
+    {
+        return static::$instances[ static::class ] = static::$instances[ static::class ]
+            ?? ($factory ?? new ErrorBagFactory())->newErrorBag();
+    }
+
+    public static function setInstance(?self $instance) : self
+    {
+        if (! ($instance instanceof static)) {
+            throw new LogicException(
+                'The `instance` should be: ' . static::class
+                . ' / ' . Lib::php_dump($instance)
             );
         }
+
+        static::$instances[ static::class ] = $instance;
+
+        return $instance;
     }
 
-    public function error($error, $path = null, $tags = null) : void
-    {
-        if (is_a($error, static::class)) {
-            $this->mergeAsErrors($error, $path, $tags);
-
-        } else {
-            $_path = null;
-            $_tags = null;
-
-            if (isset($path)) $_path = array_map('strval', (array) $path);
-            if (isset($tags)) $_tags = array_map('strval', (array) $tags);
-
-            $item = new ErrorBagItem();
-            $item->body = $error;
-            $item->path = $_path;
-            $item->tags = $_tags;
-
-            $this->errors[] = $item;
-        }
-    }
-
-
-    public function messages(array $messages, $path = null, $tags = null) : void
-    {
-        foreach ( $messages as $idx => $message ) {
-            $this->message(
-                $message,
-                isset($path) ? array_merge((array) $path, [ $idx ]) : null,
-                $tags
-            );
-        }
-    }
-
-    public function message($message, $path = null, $tags = null) : void
-    {
-        if (is_a($message, static::class)) {
-            $this->mergeAsMessages($message, $path, $tags);
-
-        } else {
-            $_path = null;
-            $_tags = null;
-
-            if (isset($path)) $_path = array_map('strval', (array) $path);
-            if (isset($tags)) $_tags = array_map('strval', (array) $tags);
-
-            $item = new ErrorBagItem();
-            $item->body = $message;
-            $item->path = $_path;
-            $item->tags = $_tags;
-
-            $this->messages[] = $item;
-        }
-    }
-
-
-    public function merge(self $errorBag, $path = null, $tags = null) : self
-    {
-        foreach ( $errorBag->errors ?? [] as $error ) {
-            $_path = $error->path;
-            $_tags = $error->tags;
-
-            if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
-            if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
-
-            $item = new ErrorBagItem();
-            $item->body = $error->body;
-            $item->path = $_path;
-            $item->tags = $_tags;
-
-            $this->errors[] = $item;
-        }
-
-        foreach ( $errorBag->messages ?? [] as $message ) {
-            $_path = $message->path;
-            $_tags = $message->tags;
-
-            if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
-            if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
-
-            $item = new ErrorBagItem();
-            $item->body = $message->body;
-            $item->path = $_path;
-            $item->tags = $_tags;
-
-            $this->messages[] = $item;
-        }
-
-        return $this;
-    }
-
-    public function mergeAsErrors(self $errorBag, $path = null, $tags = null) : self
-    {
-        foreach ( $errorBag->errors ?? [] as $error ) {
-            $_path = $error->path;
-            $_tags = $error->tags;
-
-            if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
-            if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
-
-            $item = new ErrorBagItem();
-            $item->body = $error->body;
-            $item->path = $_path;
-            $item->tags = $_tags;
-
-            $this->errors[] = $item;
-        }
-
-        foreach ( $errorBag->messages ?? [] as $message ) {
-            $_path = $message->path;
-            $_tags = $message->tags;
-
-            if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
-            if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
-
-            $item = new ErrorBagItem();
-            $item->body = $message->body;
-            $item->path = $_path;
-            $item->tags = $_tags;
-
-            $this->errors[] = $item;
-        }
-
-        return $this;
-    }
-
-    public function mergeAsMessages(self $errorBag, $path = null, $tags = null) : self
-    {
-        foreach ( $errorBag->errors ?? [] as $error ) {
-            $_path = $error->path;
-            $_tags = $error->tags;
-
-            if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
-            if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
-
-            $item = new ErrorBagItem();
-            $item->body = $error->body;
-            $item->path = $_path;
-            $item->tags = $_tags;
-
-            $this->messages[] = $item;
-        }
-
-        foreach ( $errorBag->messages ?? [] as $message ) {
-            $_path = $message->path;
-            $_tags = $message->tags;
-
-            if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
-            if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
-
-            $item = new ErrorBagItem();
-            $item->body = $message->body;
-            $item->path = $_path;
-            $item->tags = $_tags;
-
-            $this->messages[] = $item;
-        }
-
-        return $this;
-    }
-
-
-    public function toArray(string $implodeKeySeparator = null) : array
-    {
-        $implodeKeySeparator = $implodeKeySeparator ?? '.';
-
-        $result = [];
-
-        $result[ static::TYPE_ERR ] = $this->convertToArray($this->errors ?? [], $implodeKeySeparator);
-        $result[ static::TYPE_MSG ] = $this->convertToArray($this->messages ?? [], $implodeKeySeparator);
-
-        return $result;
-    }
-
-    public function toArrayNested(bool $asObject = null) : array
-    {
-        $asObject = $asObject ?? false;
-
-        $result = [];
-
-        $result[ static::TYPE_ERR ] = $this->convertToArrayNested($this->errors ?? [], $asObject);
-        $result[ static::TYPE_MSG ] = $this->convertToArrayNested($this->messages ?? [], $asObject);
-
-        return $result;
-    }
-
-
-    protected function convertToArray(array $items, string $implodeKeySeparator = null) : array
-    {
-        $result = [];
-
-        if (! isset($implodeKeySeparator)) {
-            return $items;
-        }
-
-        foreach ( $items as $i => $item ) {
-            if (! ($item instanceof ErrorBagItem)) {
-                throw new \LogicException('Each of `items` should be instance of: ' . ErrorBagItem::class);
-            }
-
-            $key = implode($implodeKeySeparator, $item->path ?? []);
-
-            $result[ $key ][] = $item->body;
-        }
-
-        return $result;
-    }
-
-    protected function convertToArrayNested(array $items, bool $asObject = null) : array
-    {
-        $asObject = $asObject ?? true;
-
-        $result = [];
-
-        foreach ( $items as $item ) {
-            if (! ($item instanceof ErrorBagItem)) {
-                throw new \LogicException('Each of `items` should be instance of: ' . ErrorBagItem::class);
-            }
-
-            $row = $asObject
-                ? $item
-                : $item->body;
-
-            ($item->path)
-                ? Lib::array_set_path($result, $item->path, $row)
-                : $result[] = $row;
-        }
-
-        return $result;
-    }
+    /**
+     * @var ErrorBagStackInterface[]
+     */
+    protected static $instances = [];
 }

@@ -1,18 +1,11 @@
 <?php
 
 use Gzhegow\ErrorBag\Lib;
-use Gzhegow\ErrorBag\ErrorBagStack;
-use function Gzhegow\ErrorBag\_error_bag;
-use function Gzhegow\ErrorBag\_error_bag_pop;
-use function Gzhegow\ErrorBag\_error_bag_end;
-use function Gzhegow\ErrorBag\_error_bag_push;
-use function Gzhegow\ErrorBag\_error_bag_start;
+use Gzhegow\ErrorBag\ErrorBag;
+use Gzhegow\ErrorBag\ErrorBagFactory;
 
 
 require_once __DIR__ . '/vendor/autoload.php';
-
-// > подключение файла хелперов не обязательно, используется в демонстрационных целях
-require_once __DIR__ . '/helpers/error-bag.example.php';
 
 
 // > настраиваем PHP
@@ -34,46 +27,64 @@ set_exception_handler(function ($e) {
 });
 
 
+class TestException extends \Exception
+{
+}
+
+
 function a()
 {
-    // > получаем текущий error-bag
-    _error_bag($b);
+    // > получаем текущий пул (родительский, для читабельности лучше указывать это в самом начале функции)
+    ErrorBag::get($b);
 
-    // > создаем дочерний error-bag, который будет отвечать за функцию aa()
-    _error_bag_push($bb);
+    // > создаем дочерний пул, который будет отвечать за функцию aa() (передаем по ссылке переменную для краткости написания)
+    ErrorBag::begin($bb);
 
+    // > вызываем aa()
     $result = aa();
 
-    // > завершаем дочерний error-bag (опционально - передаем его самого для проверки, не забыли ли глубже закрыть другие)
-    _error_bag_pop($bb);
+    // > закрываем дочерний пул (опционально - передаем его самого для проверки не забыли ли закрыть другие глубже по коду)
+    ErrorBag::end($verify = $bb);
 
-    // > соединяем закрытый в указанный с присвоением пути и тегов
-    $b->merge($bb, 'aa', 'tag_aa');
-
-    // > то же самое, только объединение произойдет в актуальный (текущий)
-    // _error_bag_merge($bb, 'aa', 'tag_aa');
+    // > соединяем ошибки из закрытого с присвоением пути и тегов, для читабельности лучше использовать $b, $bb, $bbb и так далее
+    $b->merge($bb, $path = [ 'aa' ], $tags = [ 'tag_aa' ]);
+    // $b->mergeAsErrors($bb, $path = [ 'aa' ], $tags = [ 'tag_aa' ]); // > соединить и преобразовать типы в Ошибка
+    // $b->mergeAsMessages($bb, $path = [ 'aa' ], $tags = [ 'tag_aa' ]); // > соединить и преобразовать типы в Сообщение
+    // $b->mergeErrors($bb, $path = [ 'aa' ], $tags = [ 'tag_aa' ]); // > соединить только ошибки
+    // $b->mergeMessages($bb, $path = [ 'aa' ], $tags = [ 'tag_aa' ]); // > соединить только сообщения
 
     return $result;
 }
 
 function aa()
 {
-    _error_bag($b);
+    ErrorBag::get($b);
 
     $result = [];
 
     for ( $i = 0; $i <= 5; $i++ ) {
-        _error_bag_push($bb);
+        ErrorBag::begin($bb);
 
-        $_result = aaa();
+        $_result = [];
+        try {
+            $_result = aaa();
+        }
+        catch ( TestException $e ) {
+            // > завершаем все пулы из стека до того, который нам известен
+            $bbb = ErrorBag::capture($until = $bb);
 
-        _error_bag_pop($bb);
+            // > из-за кода в этом примере, который не использует генераторы, мы не можем определить номер итерации, на которой выброшено исключение, значит укажем путь [ 'aaaa', '-1' ]
+            $bb->message($bbb, [ 'aaaa', -1 ], 'tag_aaaa');
 
-        // > соединяем закрытый в указанный как предупреждения (если ошибка была решена) с присвоением пути и тегов
+            // > по желанию можно добавить ошибку из исключения
+            // $b->error($e->getMessage());
+        }
+
+        ErrorBag::end($bb);
+
+        // > соединяем закрытый пул со сменой типа на message (case: ошибка была решена) с присвоением пути и тегов
+        // > выполнит то же, что и $b->mergeAsMessages(), поскольку на входе пул
         $b->message($bb, [ 'aaa', $i ], 'tag_aaa');
-
-        // то же самое, только в актуальный (текущий)
-        // _error_bag_message($bb, [ 'aaa', $i ], 'tag_aaa');
 
         // > если во вложенном были ошибки - элемент пропускаем (принятие решение в родителе в зависимости от потомка)
         if ($bb->hasErrors()) {
@@ -86,25 +97,39 @@ function aa()
     return $result;
 }
 
+/**
+ * @throws TestException
+ */
 function aaa()
 {
-    _error_bag($b);
+    ErrorBag::get($b);
 
     $result = [];
 
     for ( $i = 0; $i <= 5; $i++ ) {
-        _error_bag_push($bb);
+        ErrorBag::begin($bb);
 
         $_result = aaaa($i);
 
-        _error_bag_pop($bb);
+        if ($i === 5) {
+            // > бросаем исключение, таким образом ::end() + ::merge() не выполнится
+            // > в блоке catch() мы используем ::capture(), чтобы завершить все пулы, которые из-за исключения завершить не удалось
+            // > ps. я пробовал использовать __destruct() и контексты, чтобы делать это автоматически
+            // > но php garbage collector и работа с zval refcount приводят к очистке объектов группами, и от этого больше проблем, чем пользы
+            throw new TestException('My Exception');
+        }
+
+        ErrorBag::end($bb);
 
         $b->message($bb, [ 'aaaa', $i ], 'tag_aaaa');
+
         if ($bb->hasErrors()) {
             continue;
         }
 
         $result[] = $_result;
+
+        unset($ctx);
     }
 
     return $result;
@@ -112,23 +137,25 @@ function aaa()
 
 function aaaa($i)
 {
-    _error_bag($b);
+    ErrorBag::get($b);
 
-    if ($i === 1) {
+    if (in_array($i, [ 0, 1, 2 ])) {
         // > добавляем ошибку, можно указать путь и теги
-        $b->error("Error {$i}", $path = null, $tags = 'tag1'); // 1
+        $b->error("[ Tag 1 ] {$i}", $path = $i, $tags = 'tag1'); // 1
 
-    } elseif ($i % 2) {
-        $b->error("Error {$i}", null, 'tag2'); // 2, 4
+    } elseif (in_array($i, [ 3, 4 ])) {
+        // > добавляем ошибку, можно указать путь и теги
+        $b->message("[ Tag 2 ] {$i}", $path = $i, $tags = 'tag2'); // 2, 4
 
-    } elseif ($i % 3) {
+    } elseif ($i === 5) {
         // > добавляем предупреждение, можно указать путь и теги
-        $b->message("Message {$i}", null, 'tag3'); // 3
+        $b->message("[ Tag 3 ] {$i}", $path = $i, $tags = 'tag3'); // 3
     }
 
     // > принимаем решение в текущей функции, если нужно
-    // if (! $b->hasErrors()) {
-    // if (! $b->hasMessages()) {
+    // if ($b->hasItems()) {
+    // if ($b->hasErrors()) {
+    // if ($b->hasMessages()) {
     if (! $b->isEmpty()) {
         return null;
     }
@@ -137,57 +164,106 @@ function aaaa($i)
 }
 
 
-// > включаем отлов ошибок
-_error_bag_start($b);
+// > Настройка модуля
+// > можно расширить класс и написать свою фабрику
+$factory = new ErrorBagFactory();
+$root = ErrorBag::getInstance($factory);
 
+// > можно null передать или ничего, само создаст фабрику по-умолчанию
+// $factory = null;
+// $root = ErrorBag::getInstance();
+
+// > Сброс стека пулов перед использованием, или если мы не знаем, пуст ли стек пулов на текущий момент
+// $stackLatest = ErrorBag::reset();
+// > Позже можно вернуть сброшенный стек обратно
+// ErrorBag::reset($stackLatest);
+
+// > Создаем новый пул
+ErrorBag::begin($b);
+
+// > Запускаем произвольный код
 $result = a();
-var_dump($result); // > какой-то результат вашей логики
 
-// > завершаем отлов ошибок, иначе дальнейший код продолжит отлавливать в открытый ранее error-bag
-_error_bag_end($b);
+// > Выводим или сохраняем в хранилище
+// var_dump($b->toArray($implodeKeySeparator = '|')); // > все проблемы массивом
+// var_dump($b->toArrayNested($asObject = true)); // > все проблемы вложенным массивом
 
-// > все проблемы вложенным массивом
-// var_dump($b->toArrayNested($asObject = true));
+// var_dump($b->getErrors()->toArray($implodeKeySeparator = '|')); // > все ошибки массивом
+// var_dump($b->getMessages()->toArray($implodeKeySeparator = '|')); // > все сообщения массивом
+// var_dump($b->toErrors()->toArray($implodeKeySeparator = '|')); // > преобразовать всё в ошибки, затем все ошибки массивом
+// var_dump($b->toMessages()->toArray($implodeKeySeparator = '|')); // > преобразовать всё в сообщения, затем все сообщения массивом
 
-// > все проблемы массивом
-var_dump($b->toArray($implodeKeySeparator = '|'));
-// var_dump($b->getErrors()->toArray('|')); // > все ошибки массивом
-// var_dump($b->getMessages()->toArray('|')); // > все сообщения массивом
+// > Завершаем пул
+ErrorBag::end($b);
 
 
-$stack = ErrorBagStack::getInstance();
-if (! (null === $stack->hasErrorBag())) throw new \RuntimeException();
+// > Немного тестов:
+
+if (! (null === $root->getStack()->current())) throw new \RuntimeException();
 echo 'Test OK' . PHP_EOL;
 
-$bb = $b->getByTags($andTags = [ 'tag_aaa', 'tag1' ]);
-if (! (6 === count($bb))) throw new \RuntimeException();
+$bb = $b->getByTags(
+    $tag = 'tag1',  // даст 18
+    $orTag = 'tag2' // и ещё 12
+);
+if (! (30 === count($bb))) throw new \RuntimeException(); // 5/6
 echo 'Test OK' . PHP_EOL;
 
-$bb = $b->getByTags($tag = 'tag1', $orTag = 'tag2');
-if (! (18 === count($bb))) throw new \RuntimeException();
+$bb = $b->getByTags($andTags = [
+    'tag_aaa', // даст 36
+    'tag1', // но тут только 18
+]);
+if (! (18 === count($bb))) throw new \RuntimeException(); // 3/6
 echo 'Test OK' . PHP_EOL;
 
-$bb = $b->getByTags($andTags = [ 'tag1', 'tag2' ]);
-if (! (0 === count($bb))) throw new \RuntimeException();
+$bb = $b->getByTags($andTags = [
+    'tag1', // даст 18
+    'tag2', // но тут только 0
+]);
+if (! (0 === count($bb))) throw new \RuntimeException(); // 0/6
 echo 'Test OK' . PHP_EOL;
 
-$bb = $b->getByTags($andTags = (object) [ 'tag_aaa', 'tag1' ], $orAndTags = (object) [ 'tag_aaa', 'tag2' ]);
-if (! (18 === count($bb))) throw new \RuntimeException();
+$bb = $b->getByTags(
+    $andTags = (object) [ 'tag_aaa', 'tag1' ],  // 18
+    $orAndTags = (object) [ 'tag_aaa', 'tag2' ] // and 12
+);
+if (! (30 === count($bb))) throw new \RuntimeException(); // 5/6
 echo 'Test OK' . PHP_EOL;
 
 
-$bb = $b->getByPath($path = [ 'aaa', 1 ]);
-if (! (5 === count($bb))) throw new \RuntimeException();
+$bb = $b->getByPath($path = [ 'aaa', 1 ]);               // 6
+if (! (6 === count($bb))) throw new \RuntimeException(); // 1/6
 echo 'Test OK' . PHP_EOL;
 
-$bb = $b->getByPath($path = [ 'aaa', 1 ], $orPath = [ 'aaa', 2 ]);
-if (! (10 === count($bb))) throw new \RuntimeException();
+$bb = $b->getByPath(
+    $path = [ 'aaa', 1 ],  // даст 6
+    $orPath = [ 'aaa', 2 ] // и ещё 6
+);
+if (! (12 === count($bb))) throw new \RuntimeException(); // 2/6
 echo 'Test OK' . PHP_EOL;
 
-$bb = $b->getByPath($andPathes = (object) [ [ 'aaa', 1 ], [ 'aaa', 2 ] ]);
-if (! (0 === count($bb))) throw new \RuntimeException();
+$bb = $b->getByPath(
+    $andPathes = (object) [
+        [ 'aaa', 1 ], // даст 6
+        [ 'aaa', 2 ], // но тут только 0
+    ]
+);
+if (! (0 === count($bb))) throw new \RuntimeException(); // 0/6
 echo 'Test OK' . PHP_EOL;
 
-$bb = $b->getByPath($andPathes = (object) [ [ 'aaa', 1 ], [ 'aaaa', 1 ] ], $orAndPathes = (object) [ [ 'aaa', 1 ], [ 'aaaa', 2 ] ]);
-if (! (2 === count($bb))) throw new \RuntimeException();
+$bb = $b->getByPath(
+    $andPathes = (object) [
+        [ 'aaa', 1 ], // даст 6
+        [ 'aaaa', 1 ], // но тут только 1
+    ],
+    $orAndPathes = (object) [
+        [ 'aaa', 1 ], // даст 6
+        [ 'aaaa', 2 ], // но тут только 1
+    ]
+);
+if (! (2 === count($bb))) throw new \RuntimeException(); // 2/36
+echo 'Test OK' . PHP_EOL;
+
+$bb = $b->getByPath([ 'aaaa', -1 ]);                     // даст 6
+if (! (6 === count($bb))) throw new \RuntimeException(); // 1/6
 echo 'Test OK' . PHP_EOL;

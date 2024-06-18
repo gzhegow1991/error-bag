@@ -2,107 +2,121 @@
 
 namespace Gzhegow\ErrorBag;
 
-class ErrorBagStack
+use Gzhegow\ErrorBag\Exception\RuntimeException;
+
+
+class ErrorBagStack implements ErrorBagStackInterface
 {
-    protected $errorBagStack = [];
-    protected $errorBag;
+    /**
+     * @var ErrorBagFactoryInterface
+     */
+    protected $factory;
+
+    /**
+     * @var ErrorBagPoolInterface[]
+     */
+    protected $stack = [];
+    /**
+     * @var ErrorBagPoolInterface
+     */
+    protected $pool;
 
 
-    public function hasErrorBag() : ?ErrorBag
+    public function __construct(ErrorBagFactoryInterface $factory)
     {
-        return $this->errorBag;
+        $this->factory = $factory;
     }
 
-    public function getErrorBag() : ErrorBag
+
+    public function current() : ?ErrorBagPoolInterface
     {
-        return $this->errorBag;
+        return $this->pool;
     }
 
 
-    public function pushErrorBag(ErrorBag $current = null) : ErrorBag
+    public function has(ErrorBagPoolInterface $pool) : ?ErrorBagPoolInterface
     {
-        $current = $current ?? new ErrorBag();
-
-        $this->errorBagStack[] = $current;
-
-        $this->errorBag = $current;
-
-        return $current;
+        return $this->stack[ spl_object_id($pool) ] ?? null;
     }
 
-    public function popErrorBag(?ErrorBag $verify) : ?ErrorBag
+    public function get(ErrorBagPoolInterface $pool) : ErrorBagPoolInterface
     {
-        $errorBagLast = $this->errorBagStack
-            ? end($this->errorBagStack)
-            : null;
+        return $this->stack[ spl_object_id($pool) ];
+    }
+
+
+    public function push(ErrorBagPoolInterface $new) : ErrorBagStackInterface
+    {
+        $this->stack[ spl_object_id($new) ] = $new;
+
+        $this->pool = $new;
+
+        return $this;
+    }
+
+    public function pop(?ErrorBagPoolInterface $verify) : ErrorBagPoolInterface
+    {
+        $result = $this->factory->newErrorBagPool();
 
         if ($verify) {
-            if (! $errorBagLast) {
-                throw new \RuntimeException(
-                    'ErrorBag stack is empty at the moment'
+            if (! $this->stack) {
+                throw new RuntimeException(
+                    'The pool stack is empty at the moment'
                 );
 
-            } elseif ($errorBagLast !== $verify) {
-                throw new \RuntimeException(
-                    'You possible forget somewhere to pop() previously started ErrorBag'
+            } else {
+                $current = end($this->stack);
+
+                if ($current !== $verify) {
+                    throw new RuntimeException(
+                        'Passed pool does not match latest pool: '
+                        . Lib::php_dump($verify)
+                        . ' / ' . Lib::php_dump($current)
+                    );
+                }
+
+                array_pop($this->stack);
+
+                $result->merge($current);
+            }
+
+        } elseif ($this->stack) {
+            $current = array_pop($this->stack);
+
+            $result->merge($current);
+        }
+
+        $this->pool = end($this->stack) ?: null;
+
+        return $result;
+    }
+
+    public function flush(ErrorBagPoolInterface $until = null) : ErrorBagPoolInterface
+    {
+        $hasUntil = (null !== $until);
+
+        $result = $this->factory->newErrorBagPool();
+
+        if ($hasUntil) {
+            if (! $this->has($until)) {
+                throw new RuntimeException(
+                    'Passed pool is missing in the stack: ' . Lib::php_dump($until)
                 );
             }
         }
 
-        if ($errorBagLast) {
-            array_pop($this->errorBagStack);
-
-            $this->errorBag = $this->errorBagStack
-                ? end($this->errorBagStack)
-                : null;
-        }
-
-        return $errorBagLast;
-    }
-
-
-    public function startErrorBag(ErrorBag $new = null) : ErrorBag
-    {
-        $new = $new ?? new ErrorBag();
-
-        $this->errorBagStack[] = $new;
-
-        $this->errorBag = $new;
-
-        return $new;
-    }
-
-    public function endErrorBag(?ErrorBag $until) : ErrorBag
-    {
-        $count = count($this->errorBagStack);
-
-        $flush = new ErrorBag();
-
-        for ( $i = $count - 1; $i >= 0; $i-- ) {
-            $current = $this->errorBagStack[ $i ];
-
-            unset($this->errorBagStack[ $i ]);
-
-            $flush->merge($current);
-
-            if ($until === $current) {
+        foreach ( array_reverse($this->stack, true) as $i => $current ) {
+            if ($hasUntil && ($current === $until)) {
                 break;
             }
+
+            $result->merge($current);
+
+            unset($this->stack[ $i ]);
         }
 
-        $this->errorBag = $this->errorBagStack
-            ? end($this->errorBagStack)
-            : null;
+        $this->pool = end($this->stack) ?: null;
 
-        return $flush;
+        return $result;
     }
-
-
-    public static function getInstance() : self
-    {
-        return static::$instances[ static::class ] = static::$instances[ static::class ]
-            ?? new static();
-    }
-
-    protected static $instances = [];
 }

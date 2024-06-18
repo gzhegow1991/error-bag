@@ -1,13 +1,13 @@
 <?php
 
-namespace Gzhegow\ErrorBag;
+namespace Gzhegow\ErrorBag\Struct;
 
 class ErrorBagItem
 {
     /**
      * @var mixed
      */
-    public $body;
+    public $payload;
     /**
      * @var array
      */

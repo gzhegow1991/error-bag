@@ -2,6 +2,7 @@
 
 namespace Gzhegow\ErrorBag;
 
+
 class Lib
 {
     /**
@@ -35,22 +36,28 @@ class Lib
                 ?? null;
 
         } else {
+            $_value = [];
             foreach ( $value as $k => $v ) {
-                $value[ $k ] = null
+                $_value[ $k ] = null
                     ?? (is_array($v) ? '{ array(' . count($v) . ') }' : null)
-                    ?? (is_iterable($v) ? '{ iterable(' . get_class($value) . ' # ' . spl_object_id($value) . ') }' : null)
                     // ! recursion
                     ?? static::php_dump($v, $maxlen);
             }
 
-            $_value = var_export($value, true);
+            ob_start();
+            var_dump($_value);
+            $_value = ob_get_clean();
 
-            $_value = str_replace("\n", ' ', $_value);
+            if (is_object($value)) {
+                $_value = '{ iterable(' . get_class($value) . ' # ' . spl_object_id($value) . '): ' . $_value . ' }';
+            }
+
+            $_value = trim($_value);
             $_value = preg_replace('/\s+/', ' ', $_value);
         }
 
         if (null === $_value) {
-            throw static::php_throw(
+            throw static::php_throwable(
                 'Unable to dump variable'
             );
         }
@@ -61,9 +68,9 @@ class Lib
     /**
      * > gzhegow, перебрасывает исключение на "тихое", если из библиотеки внутреннее постоянно подсвечивается в PHPStorm
      *
-     * @return \LogicException|null
+     * @return \LogicException|\RuntimeException|null
      */
-    public static function php_throw($error = null, ...$errors) : ?object
+    public static function php_throwable($error = null, ...$errors) : ?object
     {
         if (is_a($error, \Closure::class)) {
             $error = $error(...$errors);
@@ -76,7 +83,7 @@ class Lib
             return $error;
         }
 
-        $throwErrors = static::php_throw_errors($error, ...$errors);
+        $throwErrors = static::php_throwable_args($error, ...$errors);
 
         $message = $throwErrors[ 'message' ] ?? __FUNCTION__;
         $code = $throwErrors[ 'code' ] ?? -1;
@@ -98,40 +105,39 @@ class Lib
      *     messageObject: object,
      * }
      */
-    public static function php_throw_errors($error = null, ...$errors) : array
+    public static function php_throwable_args($arg = null, ...$args) : array
     {
         $_message = null;
         $_code = null;
         $_previous = null;
         $_messageData = null;
-        $_messageObject = null;
 
-        array_unshift($errors, $error);
+        array_unshift($args, $arg);
 
-        foreach ( $errors as $err ) {
-            if (is_int($err)) {
-                $_code = $err;
-
-                continue;
-            }
-
-            if (is_a($err, \Throwable::class)) {
-                $_previous = $err;
+        foreach ( $args as $v ) {
+            if (is_int($v)) {
+                $_code = $v;
 
                 continue;
             }
 
-            if (null !== ($_string = static::filter_string($err))) {
+            if (is_a($v, \Throwable::class)) {
+                $_previous = $v;
+
+                continue;
+            }
+
+            if (null !== ($_string = static::filter_string($v))) {
                 $_message = $_string;
 
                 continue;
             }
 
             if (
-                is_array($err)
-                || is_a($err, \stdClass::class)
+                is_array($v)
+                || is_a($v, \stdClass::class)
             ) {
-                $_messageData = (array) $err;
+                $_messageData = (array) $v;
 
                 if (isset($_messageData[ 0 ])) {
                     $_message = static::filter_string($_messageData[ 0 ]);
@@ -235,7 +241,7 @@ class Lib
         $fullpath = static::array_path($path);
 
         if (! $fullpath) {
-            throw static::php_throw(
+            throw static::php_throwable(
                 'Unable to ' . __FUNCTION__ . ' due to empty path'
             );
         }
@@ -257,7 +263,7 @@ class Lib
                 unset($ref);
                 $ref = null;
 
-                throw new \RuntimeException(
+                throw static::php_throwable(
                     "Trying to traverse scalar value: "
                     . static::php_dump($p)
                     . ' / ' . static::php_dump($path)
