@@ -128,8 +128,6 @@ function aaa()
         }
 
         $result[] = $_result;
-
-        unset($ctx);
     }
 
     return $result;
