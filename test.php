@@ -77,7 +77,7 @@ function aa()
             $bb->message($bbb, [ 'aaaa', -1 ], 'tag_aaaa');
 
             // > по желанию можно добавить ошибку из исключения
-            // $b->error($e->getMessage());
+            // $bb->error($e->getMessage());
         }
 
         ErrorBag::end($bb);
