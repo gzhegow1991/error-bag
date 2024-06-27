@@ -146,7 +146,7 @@ class Lib
                 continue;
             }
 
-            if (null !== ($vString = static::filter_string($a))) {
+            if ('' !== ($vString = (string) $a)) {
                 $messageList[ $i ] = $vString;
 
                 continue;
@@ -158,7 +158,7 @@ class Lib
             ) {
                 $messageDataList[ $i ] = (array) $a;
 
-                if ($messageString = static::filter_string($messageDataList[ $i ][ 0 ])) {
+                if ('' !== ($messageString = (string) $messageDataList[ $i ][ 0 ])) {
                     $messageList[ $i ] = $messageString;
 
                     unset($messageDataList[ $i ][ 0 ]);
