@@ -98,73 +98,122 @@ class Lib
      * > gzhegow, парсит ошибки для передачи результата в конструктор исключения
      *
      * @return array{
-     *     message: string,
-     *     code: int,
-     *     previous: string,
-     *     messageData: array,
-     *     messageObject: object,
+     *     messageList: string[],
+     *     odeList: int[],
+     *     previousList: string[],
+     *     messageCodeList: array[],
+     *     messageDataList: array[],
+     *     messageObjectList: object[],
+     *     message: ?string,
+     *     code: ?int,
+     *     previous: ?string,
+     *     messageCode: ?string,
+     *     messageData: ?array,
+     *     messageObject: ?object,
+     *     unresolved: array,
      * }
      */
     public static function php_throwable_args($arg = null, ...$args) : array
     {
-        $_message = null;
-        $_code = null;
-        $_previous = null;
-        $_messageData = null;
-
         array_unshift($args, $arg);
 
-        foreach ( $args as $v ) {
-            if (is_int($v)) {
-                $_code = $v;
+        $len = count($args);
+
+        $messageList = null;
+        $codeList = null;
+        $previousList = null;
+        $messageCodeList = null;
+        $messageDataList = null;
+        $messageObjectList = null;
+
+        $message = null;
+        $code = null;
+        $previous = null;
+        $messageCode = null;
+        $messageData = null;
+        $messageObject = null;
+
+        $unresolved = [];
+
+        for ( $i = 0; $i < $len; $i++ ) {
+            $a = $args[ $i ];
+
+            if (is_int($a)) {
+                $code = $codeList[ $i ] = $a;
 
                 continue;
             }
 
-            if (is_a($v, \Throwable::class)) {
-                $_previous = $v;
+            if (is_a($a, \Throwable::class)) {
+                $previous = $previousList[ $i ] = $a;
 
                 continue;
             }
 
-            if (null !== ($_string = static::filter_string($v))) {
-                $_message = $_string;
+            if (null !== ($vString = static::filter_string($a))) {
+                $message = $messageList[ $i ] = $vString;
 
                 continue;
             }
 
             if (
-                is_array($v)
-                || is_a($v, \stdClass::class)
+                is_array($a)
+                || is_a($a, \stdClass::class)
             ) {
-                $_messageData = (array) $v;
+                $messageData = $messageDataList[ $i ] = (array) $a;
 
-                if (isset($_messageData[ 0 ])) {
-                    $_message = static::filter_string($_messageData[ 0 ]);
+                continue;
+            }
+
+            $unresolved[ $i ] = $a;
+        }
+
+        for ( $i = $len - 1; $i >= 0; $i-- ) {
+            if (isset($messageDataList[ $i ][ 0 ])) {
+                if ($messageString = static::filter_string($messageDataList[ $i ][ 0 ])) {
+                    $message = $messageList[ $i ] = $messageString;
+                }
+            }
+
+            if (isset($messageList[ $i ])) {
+                if (null !== $messageList[ $i ]) {
+                    if (preg_match('/^[a-z](?!.*\s)/i', $messageList[ $i ])) {
+                        $messageCode = $messageCodeList[ $i ] = strtoupper($messageList[ $i ]);
+                    }
+                }
+            }
+
+            if (null !== $messageDataList[ $i ]) {
+                $messageObject = $messageObjectList[ $i ] = (object) $messageDataList[ $i ];
+
+            } elseif (null !== $messageList[ $i ]) {
+                $messageObject = $messageObjectList[ $i ] = (object) [ $messageList[ $i ] ];
+            }
+
+            if (null !== $messageDataList[ $i ]) {
+                unset($messageDataList[ $i ][ 0 ]);
+
+                if (empty($messageDataList[ $i ])) {
+                    $messageDataList[ $i ] = null;
                 }
             }
         }
 
-        $_message = $_message ?? null;
-        $_code = $_code ?? null;
-        $_previous = $_previous ?? null;
-
-        $_messageObject = null
-            ?? ((null !== $_messageData) ? (object) $_messageData : null)
-            ?? ((null !== $_message) ? (object) [ $_message ] : null);
-
-        if (null !== $_messageData) {
-            unset($_messageData[ 0 ]);
-
-            $_messageData = $_messageData ?: null;
-        }
-
         $result = [];
-        $result[ 'message' ] = $_message;
-        $result[ 'code' ] = $_code;
-        $result[ 'previous' ] = $_previous;
-        $result[ 'messageData' ] = $_messageData;
-        $result[ 'messageObject' ] = $_messageObject;
+
+        $result[ 'messageList' ] = $messageList;
+        $result[ 'codeList' ] = $codeList;
+        $result[ 'previousList' ] = $previousList;
+        $result[ 'messageDataList' ] = $messageDataList;
+        $result[ 'messageObjectList' ] = $messageObjectList;
+
+        $result[ 'message' ] = $message;
+        $result[ 'code' ] = $code;
+        $result[ 'previous' ] = $previous;
+        $result[ 'messageData' ] = $messageData;
+        $result[ 'messageObject' ] = $messageObject;
+
+        $result[ 'unresolved' ] = $unresolved;
 
         return $result;
     }
