@@ -191,7 +191,10 @@ class Lib
         $result[ 'messageDataList' ] = $messageDataList;
 
         $messageDataList = $messageDataList ?? [];
-        $messageData = array_replace(...$messageDataList);
+        $messageData = $messageDataList
+            ? array_replace(...$messageDataList)
+            : [];
+
         $messageObject = (object) ([ $message ] + $messageData);
 
         $result[ 'message' ] = $message;
