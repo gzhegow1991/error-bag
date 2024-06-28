@@ -124,30 +124,13 @@ class Lib
         $messageCodeList = null;
         $messageDataList = null;
 
-        $message = null;
-        $code = null;
-        $previous = null;
-        $messageCode = null;
-
         $__unresolved = [];
 
         for ( $i = 0; $i < $len; $i++ ) {
             $a = $args[ $i ];
 
-            if (is_int($a)) {
-                $codeList[ $i ] = $a;
-
-                continue;
-            }
-
             if (is_a($a, \Throwable::class)) {
                 $previousList[ $i ] = $a;
-
-                continue;
-            }
-
-            if ('' !== ($vString = (string) $a)) {
-                $messageList[ $i ] = $vString;
 
                 continue;
             }
@@ -167,6 +150,18 @@ class Lib
                         unset($messageDataList[ $i ]);
                     }
                 }
+
+                continue;
+            }
+
+            if (is_int($a)) {
+                $codeList[ $i ] = $a;
+
+                continue;
+            }
+
+            if ('' !== ($vString = (string) $a)) {
+                $messageList[ $i ] = $vString;
 
                 continue;
             }
