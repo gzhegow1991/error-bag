@@ -2,6 +2,7 @@
 
 namespace Gzhegow\ErrorBag;
 
+use Gzhegow\Lib\Lib;
 use Gzhegow\ErrorBag\Struct\ErrorBagItem;
 use Gzhegow\ErrorBag\Exception\LogicException;
 
@@ -90,7 +91,7 @@ class ErrorBagPool implements ErrorBagPoolInterface
             if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
             if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
 
-            $item = ErrorBag::getInstance()->getFactory()->newErrorBagItem();
+            $item = ErrorBag::newErrorBagItem();
             $item->payload = $error->payload;
             $item->path = $_path;
             $item->tags = $_tags;
@@ -114,7 +115,7 @@ class ErrorBagPool implements ErrorBagPoolInterface
             if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
             if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
 
-            $item = ErrorBag::getInstance()->getFactory()->newErrorBagItem();
+            $item = ErrorBag::newErrorBagItem();
             $item->payload = $message->payload;
             $item->path = $_path;
             $item->tags = $_tags;
@@ -326,7 +327,7 @@ class ErrorBagPool implements ErrorBagPoolInterface
             if (isset($path)) $_path = array_map('strval', (array) $path);
             if (isset($tags)) $_tags = array_map('strval', (array) $tags);
 
-            $item = ErrorBag::getInstance()->getFactory()->newErrorBagItem();
+            $item = ErrorBag::newErrorBagItem();
             $item->payload = $error;
             $item->path = $_path;
             $item->tags = $_tags;
@@ -365,7 +366,7 @@ class ErrorBagPool implements ErrorBagPoolInterface
             if (isset($path)) $_path = array_map('strval', (array) $path);
             if (isset($tags)) $_tags = array_map('strval', (array) $tags);
 
-            $item = ErrorBag::getInstance()->getFactory()->newErrorBagItem();
+            $item = ErrorBag::newErrorBagItem();
             $item->payload = $message;
             $item->path = $_path;
             $item->tags = $_tags;
@@ -396,7 +397,7 @@ class ErrorBagPool implements ErrorBagPoolInterface
             if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
             if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
 
-            $item = ErrorBag::getInstance()->getFactory()->newErrorBagItem();
+            $item = ErrorBag::newErrorBagItem();
             $item->payload = $error->payload;
             $item->path = $_path;
             $item->tags = $_tags;
@@ -418,7 +419,7 @@ class ErrorBagPool implements ErrorBagPoolInterface
             if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
             if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
 
-            $item = ErrorBag::getInstance()->getFactory()->newErrorBagItem();
+            $item = ErrorBag::newErrorBagItem();
             $item->payload = $message->payload;
             $item->path = $_path;
             $item->tags = $_tags;
@@ -440,7 +441,7 @@ class ErrorBagPool implements ErrorBagPoolInterface
             if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
             if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
 
-            $item = ErrorBag::getInstance()->getFactory()->newErrorBagItem();
+            $item = ErrorBag::newErrorBagItem();
             $item->payload = $error->payload;
             $item->path = $_path;
             $item->tags = $_tags;
@@ -457,7 +458,7 @@ class ErrorBagPool implements ErrorBagPoolInterface
             if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
             if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
 
-            $item = ErrorBag::getInstance()->getFactory()->newErrorBagItem();
+            $item = ErrorBag::newErrorBagItem();
             $item->payload = $message->payload;
             $item->path = $_path;
             $item->tags = $_tags;
@@ -479,7 +480,7 @@ class ErrorBagPool implements ErrorBagPoolInterface
             if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
             if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
 
-            $item = ErrorBag::getInstance()->getFactory()->newErrorBagItem();
+            $item = ErrorBag::newErrorBagItem();
             $item->payload = $error->payload;
             $item->path = $_path;
             $item->tags = $_tags;
@@ -496,7 +497,7 @@ class ErrorBagPool implements ErrorBagPoolInterface
             if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
             if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
 
-            $item = ErrorBag::getInstance()->getFactory()->newErrorBagItem();
+            $item = ErrorBag::newErrorBagItem();
             $item->payload = $message->payload;
             $item->path = $_path;
             $item->tags = $_tags;
@@ -521,7 +522,7 @@ class ErrorBagPool implements ErrorBagPoolInterface
             if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
             if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
 
-            $item = ErrorBag::getInstance()->getFactory()->newErrorBagItem();
+            $item = ErrorBag::newErrorBagItem();
             $item->payload = $error->payload;
             $item->path = $_path;
             $item->tags = $_tags;
@@ -538,7 +539,7 @@ class ErrorBagPool implements ErrorBagPoolInterface
             if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
             if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
 
-            $item = ErrorBag::getInstance()->getFactory()->newErrorBagItem();
+            $item = ErrorBag::newErrorBagItem();
             $item->payload = $error->payload;
             $item->path = $_path;
             $item->tags = $_tags;
@@ -562,7 +563,7 @@ class ErrorBagPool implements ErrorBagPoolInterface
             if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
             if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
 
-            $item = ErrorBag::getInstance()->getFactory()->newErrorBagItem();
+            $item = ErrorBag::newErrorBagItem();
             $item->payload = $error->payload;
             $item->path = $_path;
             $item->tags = $_tags;
@@ -579,7 +580,7 @@ class ErrorBagPool implements ErrorBagPoolInterface
             if (isset($path)) $_path = array_merge((array) $path, $_path ?? []);
             if (isset($tags)) $_tags = array_unique(array_merge($_tags ?? [], (array) $tags));
 
-            $item = ErrorBag::getInstance()->getFactory()->newErrorBagItem();
+            $item = ErrorBag::newErrorBagItem();
             $item->payload = $error->payload;
             $item->path = $_path;
             $item->tags = $_tags;
@@ -643,7 +644,7 @@ class ErrorBagPool implements ErrorBagPoolInterface
 
                     $implode = [];
                     array_walk_recursive($p, static function ($value) use (&$implode) {
-                        $implode[] = Lib::filter_string($value);
+                        $implode[] = Lib::parse_string_not_empty($value);
                     });
                     $implode = implode('.', $implode);
 
@@ -686,7 +687,7 @@ class ErrorBagPool implements ErrorBagPoolInterface
 
                     $implode = [];
                     array_walk_recursive($p, static function ($value) use (&$implode) {
-                        $implode[] = Lib::filter_string($value);
+                        $implode[] = Lib::parse_string_not_empty($value);
                     });
                     $implode = implode('.', $implode);
 

@@ -69,9 +69,11 @@ class ErrorBagStack implements ErrorBagStackInterface
 
                 if ($current !== $verify) {
                     throw new RuntimeException(
-                        'Passed pool does not match latest pool: '
-                        . Lib::php_dump($verify)
-                        . ' / ' . Lib::php_dump($current)
+                        [
+                            'Passed pool does not match latest pool',
+                            $verify,
+                            $current,
+                        ]
                     );
                 }
 
@@ -100,7 +102,10 @@ class ErrorBagStack implements ErrorBagStackInterface
         if ($hasUntil) {
             if (! $this->has($until)) {
                 throw new RuntimeException(
-                    'Passed pool is missing in the stack: ' . Lib::php_dump($until)
+                    [
+                        'Passed pool is missing in the stack',
+                        $until,
+                    ]
                 );
             }
         }

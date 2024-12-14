@@ -2,24 +2,10 @@
 
 namespace Gzhegow\ErrorBag\Exception;
 
-use Gzhegow\ErrorBag\Lib;
+use Gzhegow\Lib\Exception\RuntimeException as RuntimeExceptionBase;
 
 
-class RuntimeException extends \RuntimeException implements
+class RuntimeException extends RuntimeExceptionBase implements
     ExceptionInterface
 {
-    public $message;
-    public $code;
-    public $previous;
-
-    public function __construct(...$errors)
-    {
-        foreach ( Lib::php_throwable_args(...$errors) as $k => $v ) {
-            if (property_exists($this, $k)) {
-                $this->{$k} = $v;
-            }
-        }
-
-        parent::__construct($this->message, $this->code, $this->previous);
-    }
 }
