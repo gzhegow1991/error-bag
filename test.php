@@ -25,6 +25,10 @@ set_exception_handler(function (\Throwable $e) {
         echo \Gzhegow\Lib\Lib::debug_var_dump($current) . PHP_EOL;
         echo $current->getMessage() . PHP_EOL;
 
+        $file = $current->getFile() ?? '{file}';
+        $line = $current->getLine() ?? '{line}';
+        echo "{$file} : {$line}" . PHP_EOL;
+
         foreach ( $e->getTrace() as $traceItem ) {
             $file = $traceItem[ 'file' ] ?? '{file}';
             $line = $traceItem[ 'line' ] ?? '{line}';
