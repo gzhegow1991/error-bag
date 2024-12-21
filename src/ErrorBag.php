@@ -60,9 +60,13 @@ class ErrorBag
     }
 
 
-    public static function setFacade(ErrorBagFacadeInterface $facade) : void
+    public static function setFacade(ErrorBagFacadeInterface $facade) : ?ErrorBagFacadeInterface
     {
+        $last = static::$facade;
+
         static::$facade = $facade;
+
+        return $last;
     }
 
     /**
