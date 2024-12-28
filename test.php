@@ -8,39 +8,11 @@ ini_set('memory_limit', '32M');
 
 
 // > настраиваем обработку ошибок
-error_reporting(E_ALL);
-set_error_handler(function ($errno, $errstr, $errfile, $errline) {
-    if (error_reporting() & $errno) {
-        throw new \ErrorException($errstr, -1, $errno, $errfile, $errline);
-    }
-});
-set_exception_handler(function (\Throwable $e) {
-    // require_once getenv('COMPOSER_HOME') . '/vendor/autoload.php';
-    // dd();
-
-    $current = $e;
-    do {
-        echo "\n";
-
-        echo \Gzhegow\Lib\Lib::debug_var_dump($current) . PHP_EOL;
-        echo $current->getMessage() . PHP_EOL;
-
-        $file = $current->getFile() ?? '{file}';
-        $line = $current->getLine() ?? '{line}';
-        echo "{$file} : {$line}" . PHP_EOL;
-
-        foreach ( $e->getTrace() as $traceItem ) {
-            $file = $traceItem[ 'file' ] ?? '{file}';
-            $line = $traceItem[ 'line' ] ?? '{line}';
-
-            echo "{$file} : {$line}" . PHP_EOL;
-        }
-
-        echo PHP_EOL;
-    } while ( $current = $current->getPrevious() );
-
-    die();
-});
+(new \Gzhegow\Lib\Exception\ErrorHandler())
+    ->useErrorReporting()
+    ->useErrorHandler()
+    ->useExceptionHandler()
+;
 
 
 // > добавляем несколько функция для тестирования
@@ -48,7 +20,7 @@ function _debug(...$values) : void
 {
     $lines = [];
     foreach ( $values as $value ) {
-        $lines[] = \Gzhegow\Lib\Lib::debug_type_id($value);
+        $lines[] = \Gzhegow\Lib\Lib::debug()->type_id($value);
     }
 
     echo implode(' | ', $lines) . PHP_EOL;
@@ -58,7 +30,7 @@ function _dump(...$values) : void
 {
     $lines = [];
     foreach ( $values as $value ) {
-        $lines[] = \Gzhegow\Lib\Lib::debug_value($value);
+        $lines[] = \Gzhegow\Lib\Lib::debug()->value($value);
     }
 
     echo implode(' | ', $lines) . PHP_EOL;
@@ -67,8 +39,8 @@ function _dump(...$values) : void
 function _dump_array($value, int $maxLevel = null, bool $multiline = false) : void
 {
     $content = $multiline
-        ? \Gzhegow\Lib\Lib::debug_array_multiline($value, $maxLevel)
-        : \Gzhegow\Lib\Lib::debug_array($value, $maxLevel);
+        ? \Gzhegow\Lib\Lib::debug()->array_multiline($value, $maxLevel)
+        : \Gzhegow\Lib\Lib::debug()->array($value, $maxLevel);
 
     echo $content . PHP_EOL;
 }
@@ -79,8 +51,8 @@ function _assert_output(
 {
     $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1);
 
-    \Gzhegow\Lib\Lib::assert_resource_static(STDOUT);
-    \Gzhegow\Lib\Lib::assert_output($trace, $fn, $expect);
+    \Gzhegow\Lib\Lib::assert()->resource_static(STDOUT);
+    \Gzhegow\Lib\Lib::assert()->output($trace, $fn, $expect);
 }
 
 

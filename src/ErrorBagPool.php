@@ -644,7 +644,7 @@ class ErrorBagPool implements ErrorBagPoolInterface
 
                     $implode = [];
                     array_walk_recursive($p, static function ($value) use (&$implode) {
-                        $implode[] = Lib::parse_string_not_empty($value);
+                        $implode[] = Lib::parse()->string_not_empty($value);
                     });
                     $implode = implode('.', $implode);
 
@@ -687,14 +687,14 @@ class ErrorBagPool implements ErrorBagPoolInterface
 
                     $implode = [];
                     array_walk_recursive($p, static function ($value) use (&$implode) {
-                        $implode[] = Lib::parse_string_not_empty($value);
+                        $implode[] = Lib::parse()->string_not_empty($value);
                     });
                     $implode = implode('.', $implode);
 
                     $path[] = $implode;
                 }
 
-                Lib::array_set_path($result, $path, $row);
+                Lib::arr()->set_path($result, $path, $row);
             }
         }
 
