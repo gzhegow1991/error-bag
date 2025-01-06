@@ -16,33 +16,45 @@ ini_set('memory_limit', '32M');
 
 
 // > добавляем несколько функция для тестирования
-function _debug(...$values) : void
+function _debug(...$values) : string
 {
     $lines = [];
     foreach ( $values as $value ) {
         $lines[] = \Gzhegow\Lib\Lib::debug()->type_id($value);
     }
 
-    echo implode(' | ', $lines) . PHP_EOL;
+    $ret = implode(' | ', $lines) . PHP_EOL;
+
+    echo $ret;
+
+    return $ret;
 }
 
-function _dump(...$values) : void
+function _dump(...$values) : string
 {
     $lines = [];
     foreach ( $values as $value ) {
         $lines[] = \Gzhegow\Lib\Lib::debug()->value($value);
     }
 
-    echo implode(' | ', $lines) . PHP_EOL;
+    $ret = implode(' | ', $lines) . PHP_EOL;
+
+    echo $ret;
+
+    return $ret;
 }
 
-function _dump_array($value, int $maxLevel = null, bool $multiline = false) : void
+function _dump_array($value, int $maxLevel = null, bool $multiline = false) : string
 {
     $content = $multiline
         ? \Gzhegow\Lib\Lib::debug()->array_multiline($value, $maxLevel)
         : \Gzhegow\Lib\Lib::debug()->array($value, $maxLevel);
 
-    echo $content . PHP_EOL;
+    $ret = $content . PHP_EOL;
+
+    echo $ret;
+
+    return $ret;
 }
 
 function _assert_output(
@@ -51,13 +63,20 @@ function _assert_output(
 {
     $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1);
 
-    \Gzhegow\Lib\Lib::assert()->resource_static(STDOUT);
     \Gzhegow\Lib\Lib::assert()->output($trace, $fn, $expect);
+}
+
+function _assert_microtime(
+    \Closure $fn, float $expectMax = null, float $expectMin = null
+) : void
+{
+    $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1);
+
+    \Gzhegow\Lib\Lib::assert()->microtime($trace, $fn, $expectMax, $expectMin);
 }
 
 
 // >>> ЗАПУСКАЕМ!
-
 
 class TestException extends \Exception
 {
@@ -245,7 +264,7 @@ $fn = function () use (&$b) {
 
     echo '';
 };
-_assert_output($fn, <<<HEREDOC
+_assert_output($fn, '
 "TEST 1"
 [ "ERR" => "{ array(0) }", "MSG" => "{ array(36) }" ]
 [ "ERR" => "{ array(0) }", "MSG" => "{ array(1) }" ]
@@ -253,9 +272,7 @@ _assert_output($fn, <<<HEREDOC
 [ "ERR" => "{ array(0) }", "MSG" => "{ array(36) }" ]
 [ "ERR" => "{ array(36) }", "MSG" => "{ array(0) }" ]
 [ "ERR" => "{ array(0) }", "MSG" => "{ array(36) }" ]
-""
-HEREDOC
-);
+');
 
 
 // > TEST
@@ -327,7 +344,7 @@ $fn = function () use (&$b) {
 
     echo '';
 };
-_assert_output($fn, <<<HEREDOC
+_assert_output($fn, '
 "TEST 2"
 30
 18
@@ -338,6 +355,4 @@ _assert_output($fn, <<<HEREDOC
 0
 2
 6
-""
-HEREDOC
-);
+');
