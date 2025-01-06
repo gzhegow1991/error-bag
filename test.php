@@ -20,7 +20,7 @@ function _debug(...$values) : string
 {
     $lines = [];
     foreach ( $values as $value ) {
-        $lines[] = \Gzhegow\Lib\Lib::debug()->type_id($value);
+        $lines[] = \Gzhegow\Lib\Lib::debug()->type($value);
     }
 
     $ret = implode(' | ', $lines) . PHP_EOL;
@@ -243,6 +243,7 @@ $facade = new \Gzhegow\ErrorBag\ErrorBagFacade(
 $b = null;
 $fn = function () use (&$b) {
     _dump('TEST 1');
+    echo PHP_EOL;
 
     // > создаем новый пул
     \Gzhegow\ErrorBag\ErrorBag::begin($b);
@@ -261,11 +262,10 @@ $fn = function () use (&$b) {
 
     // > завершаем пул
     \Gzhegow\ErrorBag\ErrorBag::end($b);
-
-    echo '';
 };
 _assert_output($fn, '
 "TEST 1"
+
 [ "ERR" => "{ array(0) }", "MSG" => "{ array(36) }" ]
 [ "ERR" => "{ array(0) }", "MSG" => "{ array(1) }" ]
 [ "ERR" => "{ array(0) }", "MSG" => "{ array(0) }" ]
@@ -279,6 +279,7 @@ _assert_output($fn, '
 // > так можно искать маршруты с помощью имен или тегов
 $fn = function () use (&$b) {
     _dump('TEST 2');
+    echo PHP_EOL;
 
     $bb = $b->getByTags(
         $tag = 'tag1',  // 18
@@ -341,11 +342,10 @@ $fn = function () use (&$b) {
         $path = [ 'aaaa', -1 ] // 6
     );
     _dump(count($bb)); // 6
-
-    echo '';
 };
 _assert_output($fn, '
 "TEST 2"
+
 30
 18
 0
