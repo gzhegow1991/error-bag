@@ -91,63 +91,28 @@ ini_set('memory_limit', '32M');
 
 
 // > добавляем несколько функция для тестирования
-function _debug(...$values) : string
+function _values($separator = null, ...$values) : string
 {
-    $lines = [];
-    foreach ( $values as $value ) {
-        $lines[] = \Gzhegow\Lib\Lib::debug()->type($value);
-    }
-
-    $ret = implode(' | ', $lines) . PHP_EOL;
-
-    echo $ret;
-
-    return $ret;
+    return \Gzhegow\Lib\Lib::debug()->values($separator, [], ...$values);
 }
 
-function _dump(...$values) : string
+function _print(...$values) : void
 {
-    $lines = [];
-    foreach ( $values as $value ) {
-        $lines[] = \Gzhegow\Lib\Lib::debug()->value($value);
-    }
-
-    $ret = implode(' | ', $lines) . PHP_EOL;
-
-    echo $ret;
-
-    return $ret;
+    echo _values(' | ', ...$values) . PHP_EOL;
 }
 
-function _dump_array($value, int $maxLevel = null, bool $multiline = false) : string
-{
-    $content = $multiline
-        ? \Gzhegow\Lib\Lib::debug()->array_multiline($value, $maxLevel)
-        : \Gzhegow\Lib\Lib::debug()->array($value, $maxLevel);
-
-    $ret = $content . PHP_EOL;
-
-    echo $ret;
-
-    return $ret;
-}
-
-function _assert_output(
-    \Closure $fn, string $expect = null
+function _assert_stdout(
+    \Closure $fn, array $fnArgs = [],
+    string $expectedStdout = null
 ) : void
 {
     $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1);
 
-    \Gzhegow\Lib\Lib::assert()->output($trace, $fn, $expect);
-}
-
-function _assert_microtime(
-    \Closure $fn, float $expectMax = null, float $expectMin = null
-) : void
-{
-    $trace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 1);
-
-    \Gzhegow\Lib\Lib::assert()->microtime($trace, $fn, $expectMax, $expectMin);
+    \Gzhegow\Lib\Lib::test()->assertStdout(
+        $trace,
+        $fn, $fnArgs,
+        $expectedStdout
+    );
 }
 
 
@@ -306,10 +271,10 @@ $facade = new \Gzhegow\ErrorBag\ErrorBagFacade(
 \Gzhegow\ErrorBag\ErrorBag::setFacade($facade);
 
 
-// > Сброс стека пулов перед использованием, или если мы не знаем, пуст ли стек пулов на текущий момент
+// > сброс стека пулов перед использованием, или если мы не знаем, пуст ли стек пулов на текущий момент
 // $stackLatest = ErrorBag::reset();
 
-// > Позже можно вернуть сброшенный стек обратно
+// > позже можно вернуть сброшенный стек обратно
 // ErrorBag::reset($stackLatest);
 
 
@@ -317,7 +282,7 @@ $facade = new \Gzhegow\ErrorBag\ErrorBagFacade(
 // > так можно искать маршруты с помощью имен или тегов
 $b = null;
 $fn = function () use (&$b) {
-    _dump('TEST 1');
+    _print('TEST 1');
     echo PHP_EOL;
 
     // > создаем новый пул
@@ -326,19 +291,19 @@ $fn = function () use (&$b) {
     // > запускаем произвольный код
     a();
 
-    _dump($b->toArray($implodeKeySeparator = '|')); // > все проблемы массивом
-    _dump($b->toArrayNested($asObject = true));     // > все проблемы вложенным массивом
+    _print($b->toArray($implodeKeySeparator = '|')); // > все проблемы массивом
+    _print($b->toArrayNested($asObject = true));     // > все проблемы вложенным массивом
 
-    _dump($b->getErrors()->toArray($implodeKeySeparator = '|'));   // > все ошибки массивом
-    _dump($b->getMessages()->toArray($implodeKeySeparator = '|')); // > все сообщения массивом
+    _print($b->getErrors()->toArray($implodeKeySeparator = '|'));   // > все ошибки массивом
+    _print($b->getMessages()->toArray($implodeKeySeparator = '|')); // > все сообщения массивом
 
-    _dump($b->toErrors()->toArray($implodeKeySeparator = '|'));    // > преобразовать всё в ошибки, затем все ошибки массивом
-    _dump($b->toMessages()->toArray($implodeKeySeparator = '|'));  // > преобразовать всё в сообщения, затем все сообщения массивом
+    _print($b->toErrors()->toArray($implodeKeySeparator = '|'));    // > преобразовать всё в ошибки, затем все ошибки массивом
+    _print($b->toMessages()->toArray($implodeKeySeparator = '|'));  // > преобразовать всё в сообщения, затем все сообщения массивом
 
     // > завершаем пул
     \Gzhegow\ErrorBag\ErrorBag::end($b);
 };
-_assert_output($fn, '
+_assert_stdout($fn, [], '
 "TEST 1"
 
 [ "ERR" => "{ array(0) }", "MSG" => "{ array(36) }" ]
@@ -353,45 +318,45 @@ _assert_output($fn, '
 // > TEST
 // > так можно искать маршруты с помощью имен или тегов
 $fn = function () use (&$b) {
-    _dump('TEST 2');
+    _print('TEST 2');
     echo PHP_EOL;
 
     $bb = $b->getByTags(
         $tag = 'tag1',  // 18
         $orTag = 'tag2' // +12
     );
-    _dump(count($bb)); // 30
+    _print(count($bb)); // 30
 
     $bb = $b->getByTags(
         $andTags = [
             'tag_aaa', // 36
             'tag1', // -18
         ]);
-    _dump(count($bb)); // 18
+    _print(count($bb)); // 18
 
     $bb = $b->getByTags(
         $andTags = [
             'tag1', // 18
             'tag2', // -18
         ]);
-    _dump(count($bb)); // 0
+    _print(count($bb)); // 0
 
     $bb = $b->getByTags(
         $andTags = (object) [ 'tag_aaa', 'tag1' ],  // 18
         $orAndTags = (object) [ 'tag_aaa', 'tag2' ] // +12
     );
-    _dump(count($bb)); // 30
+    _print(count($bb)); // 30
 
     $bb = $b->getByPath(
         $path = [ 'aaa', 1 ]
     );
-    _dump(count($bb)); // 6
+    _print(count($bb)); // 6
 
     $bb = $b->getByPath(
         $path = [ 'aaa', 1 ],  // 6
         $orPath = [ 'aaa', 2 ] // +6
     );
-    _dump(count($bb)); // 12
+    _print(count($bb)); // 12
 
     $bb = $b->getByPath(
         $andPathes = (object) [
@@ -399,7 +364,7 @@ $fn = function () use (&$b) {
             [ 'aaa', 2 ], // -6
         ]
     );
-    _dump(count($bb)); // 0
+    _print(count($bb)); // 0
 
     $bb = $b->getByPath(
         $andPathes = (object) [
@@ -411,14 +376,14 @@ $fn = function () use (&$b) {
             [ 'aaaa', 2 ], // -5
         ]
     );
-    _dump(count($bb)); // 2
+    _print(count($bb)); // 2
 
     $bb = $b->getByPath(
         $path = [ 'aaaa', -1 ] // 6
     );
-    _dump(count($bb)); // 6
+    _print(count($bb)); // 6
 };
-_assert_output($fn, '
+_assert_stdout($fn, [], '
 "TEST 2"
 
 30
