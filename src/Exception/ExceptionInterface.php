@@ -2,7 +2,7 @@
 
 namespace Gzhegow\ErrorBag\Exception;
 
-interface ExceptionInterface
+interface ExceptionInterface extends \Throwable
 {
 
 }
